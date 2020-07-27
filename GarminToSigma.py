@@ -48,9 +48,7 @@ def readFitFile(fileName):
 
     return result
 
-
-
-def readCSVFile(fileName):
+def readCSVFileBC12(fileName):
     print ("Reading csv file ...")
     result = {"trip_distance":50.0}
     os.path.abspath(os.getcwd())
@@ -82,8 +80,40 @@ def readCSVFile(fileName):
     return result
 
 
+
+def readCSVFileBC16(fileName):
+    print ("Reading csv file ...")
+    result = {"trip_distance":50.0}
+    os.path.abspath(os.getcwd())
+    file = "%s.csv"%(fileName)
+    #fileWithPath = "%s\%s.csv"%(os.path.abspath(os.getcwd()), fileName)
+    with open(file) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=';')
+        line_count = 0
+        for row in csv_reader:
+            if line_count == 0:
+                line_count += 1
+            else:
+                result["trip_distance"] = row[0].replace(',','.')
+                result["ride_time"] = row[1].replace(',','.')
+                result["avg_speed"] = row[2].replace(',','.')
+                result["max_speed"] = row[3].replace(',','.')
+                result["fuel"] = row[4].replace(',','.')
+                result["temperature"] = row[5].replace(',','.')
+                result["total_distance"] = row[6].replace(',','.')
+                result["total_time"] = row[7].replace(',','.')
+                result["total_fuel"] = row[8].replace(',','.')
+                line_count += 1
+
+    
+    for k, v in result.items():     
+        print (k, v)
+
+    return result
+
+
 ##    ------------------------  create XML  -------------------------------   ##
-def saveToSmfFile(fitResult, csvResult, notes, activityNumber):
+def saveToSmfFile(computerBike, fitResult, csvResult, notes, activityNumber):
     print ("Saving to smf file ...")
     root = ET.Element("Activity")
 
@@ -97,9 +127,10 @@ def saveToSmfFile(fitResult, csvResult, notes, activityNumber):
 
     generalInformation = ET.SubElement(root, "GeneralInformation")
     user = ET.SubElement(generalInformation, "user")
-    user.set("color","45824")
-    user.set("gender", "male")
-    user.text = "Standard"
+    if computerBike == '1':
+        user.text = "Cube Nuroad Pro"
+    elif computerBike == '2':
+        user.text = "Alu City"
 
     #sport = ET.SubElement(generalInformation, "sport")
     #sport.text = "test"
@@ -294,15 +325,16 @@ def saveToSmfFile(fitResult, csvResult, notes, activityNumber):
     #trainingTimeUphill = ET.SubElement(generalInformation, "trainingTimeUphill")
     #trainingTimeUphill.text = ""
 
-    # Section Distance
-    tripSectionDistance = ET.SubElement(generalInformation, "tripSectionDistance")
-    tripSectionDistance.text = str(float(csvResult["TS_distance"])*1000.0)
+    if computerBike == '2':
+        # Section Distance
+        tripSectionDistance = ET.SubElement(generalInformation, "tripSectionDistance")
+        tripSectionDistance.text = str(float(csvResult["TS_distance"])*1000.0)
 
-    # Section Time
-    tripSectionTime = ET.SubElement(generalInformation, "tripSectionTime")
-    x = time.strptime(csvResult["TS_time"], '%H:%M:%S')
-    y = datetime.timedelta(hours=x.tm_hour,minutes=x.tm_min,seconds=x.tm_sec).total_seconds()
-    tripSectionTime.text = str(int(y*100))
+        # Section Time
+        tripSectionTime = ET.SubElement(generalInformation, "tripSectionTime")
+        x = time.strptime(csvResult["TS_time"], '%H:%M:%S')
+        y = datetime.timedelta(hours=x.tm_hour,minutes=x.tm_min,seconds=x.tm_sec).total_seconds()
+        tripSectionTime.text = str(int(y*100))
 
     unitId = ET.SubElement(generalInformation, "unitId")
     unitId.text = ""
@@ -424,18 +456,30 @@ def notes():
 
 
 def main():
+    
+    computerBike = input("Computer Bike [1-2]: \n \
+        1 - BC 16.16 \n \
+        2 - BC 12.12 \n -> ")
+
     #activityNumber = "4774773189"
     activityNumber = input("Activity number: ")
     
-    csvFileName = input("CSV File Name: ")
+    #csvFileName = input("CSV File Name: ")
     #csvFileName = "sigma"
-
+    
     extractZip(activityNumber)
     fitResult = readFitFile(activityNumber)
     
-    csvResult = readCSVFile(csvFileName)
+    
+    csvResult={"trip_distance":50.0}
+    if computerBike == '1':
+        csvResult = readCSVFileBC16("sigmaBC16")
+    elif computerBike == '2':
+        csvResult = readCSVFileBC12("sigmaBC12")
+
+    
     note = notes()
-    saveToSmfFile(fitResult, csvResult, note, activityNumber)
+    saveToSmfFile(computerBike, fitResult, csvResult, note, activityNumber)
 
     #input("Press Enter ...")
 

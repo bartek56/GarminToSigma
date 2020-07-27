@@ -1,2 +1,2 @@
-"C:\Program Files (x86)\Python38-32\python.exe" GarminToSigma.py &
+"C:\Program Files\Python38\python.exe" GarminToSigma.py &
 pause
