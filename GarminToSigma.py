@@ -461,15 +461,28 @@ def main():
         1 - BC 16.16 \n \
         2 - BC 12.12 \n -> ")
 
-    #activityNumber = "4774773189"
-    activityNumber = input("Activity number: ")
+    activityNumber = "0"
+    for file in os.listdir("./"):
+        if file.endswith(".zip"):
+            activityNumber = file
+            activityNumber = activityNumber.strip(".zip")
+        
     
-    #csvFileName = input("CSV File Name: ")
-    #csvFileName = "sigma"
-    
+    confirmActivityNumber = input("Whether the activity number is: " + activityNumber + " [y/n]")
+    if confirmActivityNumber == 'y':
+        print("ok")
+    elif confirmActivityNumber == 'n':
+        activityNumber = input("Activity number: ")
+    else:
+        print("error")
+        return
+        
+    if activityNumber == 0:
+        print("error")
+        return    
+
     extractZip(activityNumber)
-    fitResult = readFitFile(activityNumber)
-    
+    fitResult = readFitFile(activityNumber)    
     
     csvResult={"trip_distance":50.0}
     if computerBike == '1':
@@ -481,7 +494,6 @@ def main():
     note = notes()
     saveToSmfFile(computerBike, fitResult, csvResult, note, activityNumber)
 
-    #input("Press Enter ...")
 
    
 if __name__ == '__main__':
