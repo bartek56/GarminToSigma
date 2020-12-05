@@ -9,7 +9,7 @@ import os
 def readFitFile(fileName):
     print ("Reading fit file ...")
     #src_file = "%s%s%s"%("C:/Users/B.Brzozowski/Downloads/",fileName,".fit")
-    file = "%s.fit"%(fileName)
+    file = "%s_ACTIVITY.fit"%(fileName)
     result = {"max_altitude":80}
 
     with fitdecode.FitReader(file) as fit:
@@ -746,7 +746,7 @@ def main():
     
     confirmActivityNumber = input("Whether the activity number is: " + activityNumber + " [y/n]")
     if confirmActivityNumber == 'y':
-        print("ok")
+        print("start reading the file")
     elif confirmActivityNumber == 'n':
         activityNumber = input("Activity number: ")
     else:
