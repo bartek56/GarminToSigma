@@ -772,7 +772,11 @@ def main():
 
         note = notes()
         saveToSmfFile(computerBike, fitResult, csvResult, note, activityNumber)
-
+    
+    activityFile = "%s_ACTIVITY.%s"%(activityNumber,"fit")
+    os.remove(activityFile)
+    activityArchive = "%s.%s"%(activityNumber,"zip")
+    os.remove(activityArchive)
 
    
 if __name__ == '__main__':
