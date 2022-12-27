@@ -1,5 +1,7 @@
 import gpxpy
 import gpxpy.gpx
+import os
+import argparse
 
 class Track():
     def __init__(self, name:str, type:str, points:list):
@@ -8,47 +10,27 @@ class Track():
         self.points = points
 
 class MergeGPX():
-    def __init__(self, GpxFiles:list, resultName):
-        if len(GpxFiles) < 2:
-            print("too less files for merge")
-            return
-        self.listOfGpxFiles = GpxFiles
-        self.listOfGpxFiles.sort()
+    def __init__(self):
+        pass
+
+    def merge(self, GpxFiles:list, resultName):
+        listOfGpxFiles = GpxFiles
 
         listTracks = []
-        for gpx in self.listOfGpxFiles[1:]:
-            listTracks.append(self.loadGpx(gpx))
+        for gpx in listOfGpxFiles[1:]:
+            track = self.loadGpx(gpx)
+            if len(track.points) == 0:
+                return
+            listTracks.append(track)
 
-        xmlResult = self.addTracksToGpx(listOfGpx[0], listTracks)
+        gpxResult = self.mergeTracksWithFirst(listOfGpxFiles[0], listTracks)
 
-        self.save(xmlResult, resultName)
+        self.save(gpxResult.to_xml(), resultName)
 
-    def createGPX(self):
-        gpx = gpxpy.gpx.GPX()
-
-        # Create first track in our GPX:
-        gpx_track = gpxpy.gpx.GPXTrack()
-        gpx.tracks.append(gpx_track)
-
-        # Create first segment in our GPX track:
-        gpx_segment = gpxpy.gpx.GPXTrackSegment()
-        gpx_track.segments.append(gpx_segment)
-
-        # Create points:
-        gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(2.1234, 5.1234, elevation=1234))
-        gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(2.1235, 5.1235, elevation=1235))
-        gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(2.1236, 5.1236, elevation=1236))
-
-        # You can add routes and waypoints, too...
-
-        print('Created GPX:', gpx.to_xml())
-
-    def addTracksToGpx(self, firstTrack ,otherTracks:list):
-
-        gpx_file = open(firstTrack, 'r')
+    def mergeTracksWithFirst(self, fileOfFirstTrack ,otherTracks:list):
+        gpx_file = open(fileOfFirstTrack, 'r')
         gpx = gpxpy.parse(gpx_file)
         gpx_file.close()
-
 
         for track in otherTracks:
             newTrack = gpxpy.gpx.GPXTrack()
@@ -61,15 +43,7 @@ class MergeGPX():
             newSegment.points.extend(track.points)
             gpx.tracks.append(newTrack)
 
-
-        #for track in gpx.tracks:
-        #    trackName = track.name
-        #    trackType = track.type
-        #    for segment in track.segments:
-        #        trackPoints = segment.points
-
-        #print('GPX:', gpx.to_xml())
-        return gpx.to_xml()
+        return gpx
 
     def save(self, fileContent, fileName):
         with open(fileName, 'w') as f:
@@ -101,6 +75,34 @@ class MergeGPX():
 
 
 if __name__ == "__main__":
-    listOfGpx = ["/home/bbrzozowski/Documents/priv/activity_9753410443.gpx", "/home/bbrzozowski/Documents/priv/activity_9753410445.gpx", "/home/bbrzozowski/Documents/priv/activity_9753410444.gpx"]
+    parser = argparse.ArgumentParser(prog = "MergeGpx", description="script to merge gpx files to one long gpx")
 
-    MergeGPX(listOfGpx, "test.gpx")
+    parser.add_argument("path", help="path to gpx files")
+    parser.add_argument("-o", "--output", help="gpx output filename", required=True)
+    args = parser.parse_args()
+    path = args.path
+    outputFileName=args.output
+
+    if not os.path.isdir(path):
+        print("dir for gpx files not exist")
+        exit()
+    if not ".gpx" in outputFileName:
+        print("output filename has to have gpx extension")
+        exit()
+    if os.path.isfile(outputFileName):
+        print("output filename already exist")
+        exit()
+
+    list = os.listdir(path)
+    if len(list) < 2:
+        print("too less files for merge")
+        exit()
+
+    listOfGpx = []
+    for x in list:
+        if ".gpx" in x:
+            listOfGpx.append(os.path.join(path,x))
+    listOfGpx.sort()
+
+    mergeGpx = MergeGPX()
+    mergeGpx.merge(listOfGpx, outputFileName)
