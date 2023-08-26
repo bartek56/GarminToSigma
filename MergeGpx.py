@@ -77,9 +77,10 @@ class MergeGPX():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog = "MergeGpx", description="script to merge gpx files to one long gpx")
 
-    parser.add_argument("path", help="path to gpx files")
-    parser.add_argument("-o", "--output", help="gpx output filename", required=True)
+    parser.add_argument("path", help="path to gpx files",nargs='?', default=os.getcwd())
+    parser.add_argument("-o", "--output", help="gpx output filename")
     args = parser.parse_args()
+
     path = args.path
     outputFileName=args.output
 
