@@ -2,6 +2,7 @@ import gpxpy
 import gpxpy.gpx
 import os
 import argparse
+from gpxpy.gpx import GPXTrackPoint
 
 class Track():
     def __init__(self, name:str, type:str, segments:list):
@@ -22,8 +23,7 @@ class MergeGPX():
             if len(tracks) == 0:
                 print("file", gpx, "doesn't contain tracks. This file was skipped")
                 continue
-            for track in tracks:
-                listTracks.append(track)
+            listTracks.extend(tracks)
 
         gpxResult = self.mergeTracksWithFirst(listOfGpxFiles[0], listTracks)
 
@@ -113,7 +113,50 @@ class MergeGPX():
         return gpx
 
     def mergeByPoints(self, GpxFiles:list, resultName):
-        print("Merge by points is not supported")
+        listOfGpxFiles = GpxFiles
+
+        listPoints = []
+        for gpx in listOfGpxFiles[1:]:
+            points = self.loadPointsFromGpx(gpx)
+            if len(points) == 0:
+                print("file", gpx, "doesn't contain points. This file was skipped")
+                continue
+            listPoints.extend(points)
+
+        gpxResult = self.mergePointsWithFirst(listOfGpxFiles[0], listPoints)
+
+        self.save(gpxResult.to_xml(), resultName)
+
+    def mergePointsWithFirst(self, fileOfFirstTrack, otherPoints:list[GPXTrackPoint]):
+        gpx_file = open(fileOfFirstTrack, 'r')
+        gpx = gpxpy.parse(gpx_file)
+        gpx_file.close()
+        if len(gpx.tracks) > 1:
+            print("First file contains more then one track. I do not know how to merge it")
+            exit()
+        if len(gpx.tracks[0].segments) > 1:
+            print("First file contains more then one segment. I do not know how to merge it")
+            exit()
+        gpx.tracks[0].segments[0].points.extend(otherPoints)
+        return gpx
+
+    def loadPointsFromGpx(self, fileName):
+        gpx_file = open(fileName, 'r')
+        gpx = gpxpy.parse(gpx_file)
+        gpx_file.close()
+
+        if len(gpx.tracks) > 1:
+            print("file used for merging:", fileName, "contains more then one track !!!")
+            print("Points will be taken from all tracks for marging without splitting to tracks")
+
+        listOfPoints = []
+        for track in gpx.tracks:
+            if len(track.segments) > 1:
+                print("file used for merging:", fileName, "contains more then one segment !!!")
+                print("Points will be taken from all segments for marging without splitting to segments")
+            for segment in track.segments:
+                listOfPoints.extend(segment.points)
+        return listOfPoints
 
     def save(self, fileContent, fileName):
         with open(fileName, 'w') as f:
