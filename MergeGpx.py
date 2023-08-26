@@ -18,9 +18,10 @@ class MergeGPX():
 
         listTracks = []
         for gpx in listOfGpxFiles[1:]:
-            tracks = self.loadGpx(gpx)
+            tracks = self.loadTracksFromGpx(gpx)
             if len(tracks) == 0:
-                return
+                print("file", gpx, "doesn't contain tracks. This file was skipped")
+                continue
             for track in tracks:
                 listTracks.append(track)
 
@@ -28,34 +29,7 @@ class MergeGPX():
 
         self.save(gpxResult.to_xml(), resultName)
 
-    def mergeBySegments(self, GpxFiles:list, resultName):
-        print("Merge by segments is not supported")
-
-    def mergeByPoints(self, GpxFiles:list, resultName):
-        print("Merge by points is not supported")
-
-    def mergeTracksWithFirst(self, fileOfFirstTrack, otherTracks:list[Track]):
-        gpx_file = open(fileOfFirstTrack, 'r')
-        gpx = gpxpy.parse(gpx_file)
-        gpx_file.close()
-
-        for track in otherTracks:
-            newTrack = gpxpy.gpx.GPXTrack()
-            newTrack.name = track.name
-            newTrack.type = track.type
-            for segment in track.segments:
-                newSegment = gpxpy.gpx.GPXTrackSegment()
-                newTrack.segments.append(newSegment)
-                newSegment.points.extend(segment)
-            gpx.tracks.append(newTrack)
-
-        return gpx
-
-    def save(self, fileContent, fileName):
-        with open(fileName, 'w') as f:
-            f.write(fileContent)
-
-    def loadGpx(self, fileName):
+    def loadTracksFromGpx(self, fileName):
         trackName = ""
         trackType = ""
         trackPoints = []
@@ -75,6 +49,75 @@ class MergeGPX():
             listOfTracks.append(Track(trackName, trackType, listOfSegments))
 
         return listOfTracks
+
+    def mergeTracksWithFirst(self, fileOfFirstTrack, otherTracks:list[Track]):
+        gpx_file = open(fileOfFirstTrack, 'r')
+        gpx = gpxpy.parse(gpx_file)
+        gpx_file.close()
+
+        for track in otherTracks:
+            newTrack = gpxpy.gpx.GPXTrack()
+            newTrack.name = track.name
+            newTrack.type = track.type
+            for segment in track.segments:
+                newSegment = gpxpy.gpx.GPXTrackSegment()
+                newTrack.segments.append(newSegment)
+                newSegment.points.extend(segment)
+            gpx.tracks.append(newTrack)
+
+        return gpx
+
+    def loadSegmentsFromGpx(self, fileName):
+        gpx_file = open(fileName, 'r')
+        gpx = gpxpy.parse(gpx_file)
+        gpx_file.close()
+
+        if len(gpx.tracks) > 1:
+            print("file uses for merging:", fileName, "contains more then one track !!!")
+            print("Segments will be taken from all tracks and marged to track from first file")
+
+        listOfSegments = []
+        for track in gpx.tracks:
+            for segment in track.segments:
+                listOfSegments.append(segment.points)
+        return listOfSegments
+
+    def mergeBySegments(self, GpxFiles:list, resultName):
+        listOfGpxFiles = GpxFiles
+
+        listSegments = []
+        for gpx in listOfGpxFiles[1:]:
+            segments = self.loadSegmentsFromGpx(gpx)
+            if len(segments) == 0:
+                print("file", gpx, "doesn't contain segments. This file was skipped")
+                continue
+            listSegments.extend(segments)
+
+        gpxResult = self.mergeSegmentsWithFirst(listOfGpxFiles[0], listSegments)
+
+        self.save(gpxResult.to_xml(), resultName)
+
+    def mergeSegmentsWithFirst(self, fileOfFirstTrack, otherSegments:list):
+        gpx_file = open(fileOfFirstTrack, 'r')
+        gpx = gpxpy.parse(gpx_file)
+        gpx_file.close()
+        if len(gpx.tracks) > 1:
+            print("First file contains more then one track. I do not know how to merge it")
+            exit()
+
+        for pointsOfSegment in otherSegments:
+            newSegment = gpxpy.gpx.GPXTrackSegment()
+            newSegment.points.extend(pointsOfSegment)
+
+            gpx.tracks[0].segments.append(newSegment)
+        return gpx
+
+    def mergeByPoints(self, GpxFiles:list, resultName):
+        print("Merge by points is not supported")
+
+    def save(self, fileContent, fileName):
+        with open(fileName, 'w') as f:
+            f.write(fileContent)
 
 
 if __name__ == "__main__":
