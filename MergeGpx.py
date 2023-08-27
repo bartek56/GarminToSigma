@@ -1,3 +1,4 @@
+from abc import abstractmethod
 import gpxpy
 import gpxpy.gpx
 import os
@@ -15,25 +16,52 @@ class MergeGPX():
         self.skipPoints = skipPoints
         self.clearExtension = clearExtension
 
-    def mergeByTracks(self, GpxFiles:list, resultName):
-        listOfGpxFiles = GpxFiles
+    def merge(self, gpxFiles, resultFilename):
+        listOfGpxFiles = gpxFiles
 
-        listTracks = []
+        listOfData = []
         for gpx in listOfGpxFiles[1:]:
-            tracks = self.loadTracksFromGpx(gpx)
+            tracks = self.load(gpx)
             if len(tracks) == 0:
                 print("file", gpx, "doesn't contain tracks. This file was skipped")
                 continue
-            listTracks.extend(tracks)
+            listOfData.extend(tracks)
 
-        gpxResult = self.mergeTracksWithFirst(listOfGpxFiles[0], listTracks)
+        gpxResult = self.mergeWithFirst(listOfGpxFiles[0], listOfData)
 
-        self.save(gpxResult.to_xml(), resultName)
+        self.save(gpxResult.to_xml(), resultFilename)
 
-    def loadTracksFromGpx(self, fileName):
+    @abstractmethod
+    def load(self, fileName):
+        pass
+
+    @abstractmethod
+    def mergeWithFirst(self, fileOfFirst, otherFiles):
+        pass
+
+    def settings(self, skipPoints:int, clearExtension:bool):
+        self.clearExtension = clearExtension
+        self.skipPoints = skipPoints
+
+    def clearExtensionsFromGpx(self, gpx:GPX):
+        if self.clearExtension:
+            for track in gpx.tracks:
+                for segment in track.segments:
+                    for point in segment.points:
+                        point.extensions.clear()
+
+    def save(self, fileContent, fileName):
+        with open(fileName, 'w') as f:
+            f.write(fileContent)
+
+class MergeGPXByTracks(MergeGPX):
+    def __init__(self, skipPoints:int=1, clearExtension:bool=True):
+        self.skippoints = skipPoints
+        self.clearextension = clearExtension
+
+    def load(self, fileName):
         trackName = ""
         trackType = ""
-        trackPoints = []
 
         gpx_file = open(fileName, 'r')
         gpx = gpxpy.parse(gpx_file)
@@ -52,13 +80,13 @@ class MergeGPX():
 
         return listOfTracks
 
-    def mergeTracksWithFirst(self, fileOfFirstTrack, otherTracks:list[Track]):
-        gpx_file = open(fileOfFirstTrack, 'r')
+    def mergeWithFirst(self, fileOfFirst, otherFiles):
+        gpx_file = open(fileOfFirst, 'r')
         gpx = gpxpy.parse(gpx_file)
         gpx_file.close()
         self.clearExtensionsFromGpx(gpx)
 
-        for track in otherTracks:
+        for track in otherFiles:
             newTrack = gpxpy.gpx.GPXTrack()
             newTrack.name = track.name
             newTrack.type = track.type
@@ -75,7 +103,12 @@ class MergeGPX():
 
         return gpx
 
-    def loadSegmentsFromGpx(self, fileName):
+class MergeGpxBySegments(MergeGPX):
+    def __init__(self, skipPoints:int=1, clearExtension:bool=True):
+        self.skippoints = skipPoints
+        self.clearextension = clearExtension
+
+    def load(self, fileName):
         gpx_file = open(fileName, 'r')
         gpx = gpxpy.parse(gpx_file)
         gpx_file.close()
@@ -91,23 +124,8 @@ class MergeGPX():
                 listOfSegments.append(segment.points)
         return listOfSegments
 
-    def mergeBySegments(self, GpxFiles:list, resultName):
-        listOfGpxFiles = GpxFiles
-
-        listSegments = []
-        for gpx in listOfGpxFiles[1:]:
-            segments = self.loadSegmentsFromGpx(gpx)
-            if len(segments) == 0:
-                print("file", gpx, "doesn't contain segments. This file was skipped")
-                continue
-            listSegments.extend(segments)
-
-        gpxResult = self.mergeSegmentsWithFirst(listOfGpxFiles[0], listSegments)
-
-        self.save(gpxResult.to_xml(), resultName)
-
-    def mergeSegmentsWithFirst(self, fileOfFirstTrack, otherSegments:list):
-        gpx_file = open(fileOfFirstTrack, 'r')
+    def mergeWithFirst(self, fileOfFirst, otherFiles):
+        gpx_file = open(fileOfFirst, 'r')
         gpx = gpxpy.parse(gpx_file)
         gpx_file.close()
         self.clearExtensionsFromGpx(gpx)
@@ -115,7 +133,7 @@ class MergeGPX():
             print("First file contains more then one track. I do not know how to merge it")
             exit()
 
-        for pointsOfSegment in otherSegments:
+        for pointsOfSegment in otherFiles:
             newSegment = gpxpy.gpx.GPXTrackSegment()
             i = 0
             for point in pointsOfSegment:
@@ -127,41 +145,12 @@ class MergeGPX():
             gpx.tracks[0].segments.append(newSegment)
         return gpx
 
-    def mergeByPoints(self, GpxFiles:list, resultName):
-        listOfGpxFiles = GpxFiles
+class MergeGpxByPoints(MergeGPX):
+    def __init__(self, skipPoints:int=1, clearExtension:bool=True):
+        self.skippoints = skipPoints
+        self.clearextension = clearExtension
 
-        listPoints = []
-        for gpx in listOfGpxFiles[1:]:
-            points = self.loadPointsFromGpx(gpx)
-            if len(points) == 0:
-                print("file", gpx, "doesn't contain points. This file was skipped")
-                continue
-            listPoints.extend(points)
-
-        gpxResult = self.mergePointsWithFirst(listOfGpxFiles[0], listPoints)
-
-        self.save(gpxResult.to_xml(), resultName)
-
-    def mergePointsWithFirst(self, fileOfFirstTrack, otherPoints:list[GPXTrackPoint]):
-        gpx_file = open(fileOfFirstTrack, 'r')
-        gpx = gpxpy.parse(gpx_file)
-        gpx_file.close()
-        self.clearExtensionsFromGpx(gpx)
-        if len(gpx.tracks) > 1:
-            print("First file contains more then one track. I do not know how to merge it")
-            exit()
-        if len(gpx.tracks[0].segments) > 1:
-            print("First file contains more then one segment. I do not know how to merge it")
-            exit()
-        i = 0
-        for point in otherPoints:
-            if i%self.skipPoints == 0:
-                gpx.tracks[0].segments[0].points.append(point)
-                i = 0
-            i+=1
-        return gpx
-
-    def loadPointsFromGpx(self, fileName):
+    def load(self, fileName):
         gpx_file = open(fileName, 'r')
         gpx = gpxpy.parse(gpx_file)
         gpx_file.close()
@@ -181,17 +170,24 @@ class MergeGPX():
                 listOfPoints.extend(segment.points)
         return listOfPoints
 
-    def clearExtensionsFromGpx(self, gpx:GPX):
-        if self.clearExtension:
-            for track in gpx.tracks:
-                for segment in track.segments:
-                    for point in segment.points:
-                        point.extensions.clear()
-
-    def save(self, fileContent, fileName):
-        with open(fileName, 'w') as f:
-            f.write(fileContent)
-
+    def mergeWithFirst(self, fileOfFirst, otherPoints):
+        gpx_file = open(fileOfFirst, 'r')
+        gpx = gpxpy.parse(gpx_file)
+        gpx_file.close()
+        self.clearExtensionsFromGpx(gpx)
+        if len(gpx.tracks) > 1:
+            print("First file contains more then one track. I do not know how to merge it")
+            exit()
+        if len(gpx.tracks[0].segments) > 1:
+            print("First file contains more then one segment. I do not know how to merge it")
+            exit()
+        i = 0
+        for point in otherPoints:
+            if i%self.skipPoints == 0:
+                gpx.tracks[0].segments[0].points.append(point)
+                i = 0
+            i+=1
+        return gpx
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog = "MergeGpx", description="script to merge or editing gpx files")
@@ -243,8 +239,12 @@ if __name__ == "__main__":
 
     mergeGpx = MergeGPX(skipPoints=skippingNumber, clearExtension=clearExtension)
     if typeOfMerge == "tracks":
-        mergeGpx.mergeByTracks(listOfGpx, outputFileName)
+        mergeGpx = MergeGPXByTracks()
     elif typeOfMerge == "segments":
-        mergeGpx.mergeBySegments(listOfGpx, outputFileName)
+        mergeGpx = MergeGpxBySegments()
     elif typeOfMerge == "points":
-        mergeGpx.mergeByPoints(listOfGpx, outputFileName)
+        mergeGpx = MergeGpxByPoints()
+
+    mergeGpx.settings(skippingNumber, clearExtension)
+    mergeGpx.merge(listOfGpx, outputFileName)
+
