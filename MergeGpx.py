@@ -39,6 +39,10 @@ class MergeGPX():
     def mergeWithFirst(self, fileOfFirst, otherFiles):
         pass
 
+    def editGpx(self, gpxFile, resultFileName):
+        gpx = self.openGpx(gpxFile)
+        self.save(gpx.to_xml(), resultFileName)
+
     def settings(self, skipPoints:int, clearExtension:bool):
         self.clearExtension = clearExtension
         self.skipPoints = skipPoints
@@ -182,7 +186,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog = "MergeGpx", description="script to merge or editing gpx files")
 
     parser.add_argument("-s", "--skip", help="how much points to skip for optimization. 1 - without skipping, 2 - every second etc. Default is 1", nargs='?', dest='skippingNumber', default='1')
-    parser.add_argument("-o", "--output", help="gpx output filename")
+    parser.add_argument("-o", "--output", help="gpx output filename", required=True)
     parser.add_argument("-c","--clear", action='store_true', help="clear extension data")
     parser.add_argument('-t','--type',
                        action='store',
@@ -192,7 +196,7 @@ if __name__ == "__main__":
                              segments - one track, segments will be join - good option to merge the same day of activity\
                              points - merge points to one segment - nobody will know, that you merged gpxs', default='tracks')
 
-    parser.add_argument("path", help="directory to gpx files or path to gpx file for editing", nargs='?', default=os.getcwd())
+    parser.add_argument("path", help="directory to gpx files or path to gpx file for editing. Default value is the current directory", nargs='?', default=os.getcwd())
 
     args = parser.parse_args()
     path = args.path
@@ -201,13 +205,6 @@ if __name__ == "__main__":
     clearExtension = args.clear
     typeOfMerge = args.typeOfMerge
 
-    if os.path.isfile(path):
-        print("editing gpx file is not supported")
-        exit()
-
-    if not os.path.isdir(path):
-        print("dir for gpx files not exist")
-        exit()
     if not ".gpx" in outputFileName:
         print("output filename has to have gpx extension")
         exit()
@@ -215,24 +212,30 @@ if __name__ == "__main__":
         print("output filename already exist")
         exit()
 
-    list = os.listdir(path)
-    if len(list) < 2:
-        print("too less files for merge")
-        exit()
-
-    listOfGpx = []
-    for x in list:
-        if ".gpx" in x:
-            listOfGpx.append(os.path.join(path,x))
-    listOfGpx.sort()
-
     mergeGpx = MergeGPX(skipPoints=skippingNumber, clearExtension=clearExtension)
-    if typeOfMerge == "tracks":
-        mergeGpx = MergeGPXByTracks()
-    elif typeOfMerge == "segments":
-        mergeGpx = MergeGpxBySegments()
-    elif typeOfMerge == "points":
-        mergeGpx = MergeGpxByPoints()
+    if os.path.isfile(path):
+        mergeGpx.editGpx(path, outputFileName)
+    elif os.path.isdir(path):
+        list = os.listdir(path)
+        if len(list) < 2:
+            print("too less files for merge")
+            exit()
 
-    mergeGpx.settings(skippingNumber, clearExtension)
-    mergeGpx.merge(listOfGpx, outputFileName)
+        listOfGpx = []
+        for x in list:
+            if ".gpx" in x:
+                listOfGpx.append(os.path.join(path,x))
+        listOfGpx.sort()
+
+        if typeOfMerge == "tracks":
+            mergeGpx = MergeGPXByTracks()
+        elif typeOfMerge == "segments":
+            mergeGpx = MergeGpxBySegments()
+        elif typeOfMerge == "points":
+            mergeGpx = MergeGpxByPoints()
+
+        mergeGpx.settings(skippingNumber, clearExtension)
+        mergeGpx.merge(listOfGpx, outputFileName)
+    else:
+        print("wrong path/filename")
+
