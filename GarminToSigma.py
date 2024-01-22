@@ -6,35 +6,86 @@ import csv
 import zipfile
 import os
 
-def readFitFile(fileName):
-    print ("Reading fit file ...")
-    #src_file = "%s%s%s"%("C:/Users/B.Brzozowski/Downloads/",fileName,".fit")
-    file = "%s_ACTIVITY.fit"%(fileName)
-    result = {"max_altitude":80}
+def konwertujNaFormatCzasu(sekundy):
+    godziny = int(sekundy // 3600)
+    reszta_sekundy = sekundy % 3600
+    minuty = int(reszta_sekundy // 60)
+    pozostale_sekundy = int(reszta_sekundy % 60)
+    return f"{godziny:02}:{minuty:02}:{pozostale_sekundy:02}"
 
-    with fitdecode.FitReader(file) as fit:
+def konwerujMpSOnKmPh(MetersPerSeconds):
+    # Stała przeliczeniowa: 1 m/s = 3.6 km/h
+    przelicznik = 3.6
+    kilometry_na_godzine = MetersPerSeconds * przelicznik
+    return kilometry_na_godzine
+
+def showResultsFromFit(data):
+    for k, v in data.items():
+        if k == "total_timer_time":
+            print(k, v,"s   ", konwertujNaFormatCzasu(v))
+        elif k == "total_distance":
+            print(k, v, 'm',)
+        elif k == "avg_speed":
+            print(k, v,  konwerujMpSOnKmPh(v))
+        elif k == "max_speed":
+            print(k, v, konwerujMpSOnKmPh(v))
+        else:    
+            print (k, v)
+
+def readFitFile(filename):
+    print ("Reading fit file ...")
+    result = {"max_altitude":1}
+    result["min_altitude"] = 9999
+    isGarmin5 = False
+    isGarmin3 = False
+    #garmin_product 4427 Garmin5
+    #garmin_product 2989 Garmin3
+
+    with fitdecode.FitReader(filename) as fit:
         for frame in fit:
             if isinstance(frame, fitdecode.FitDataMessage):
                 for x in range(len(frame.fields)):
-                    if "altitude" in frame.fields[x].name:
-                        if(result["max_altitude"] < frame.fields[x].value):
-                            result["max_altitude"] = frame.fields[x].value
+                    if isGarmin3 == False and isGarmin5 == False:
+                        if "garmin_product" in frame.fields[x].name:
+                            if str(frame.fields[x].value).isdigit():
+                                #print(frame.fields[x].value)
+                                if int(frame.fields[x].value) > 3500:
+                                    isGarmin5 = True
+                                    print("Garmin5")
+                                else:
+                                    isGarmin3 = True
+                                    print("Garmin3")
+                    if isGarmin5:
+                        if "min_altitude" in frame.fields[x].name:
+                            if(frame.fields[x].value is not None):
+                                if result["min_altitude"] > frame.fields[x].value:
+                                    result["min_altitude"] = frame.fields[x].value
+                        if "max_altitude" in frame.fields[x].name:
+                            if(frame.fields[x].value is not None):
+                                if result["max_altitude"] < frame.fields[x].value:
+                                    result["max_altitude"] = frame.fields[x].value
+                    if isGarmin3:
+                        if "altitude" in frame.fields[x].name:
+                            if(result["max_altitude"] < frame.fields[x].value):
+                                result["max_altitude"] = frame.fields[x].value
+                            if(result["min_altitude"] > frame.fields[x].value):
+                                result["min_altitude"] = frame.fields[x].value
                     if "avg_heart_rate" in frame.fields[x].name:
                         result["avg_heart_rate"] = frame.fields[x].value
                     if "max_heart_rate" in frame.fields[x].name:
-                        result["max_heart_rate"] = frame.fields[x].value 
+                        result["max_heart_rate"] = frame.fields[x].value
                     if "total_timer_time" in frame.fields[x].name:
                         result["total_timer_time"] = frame.fields[x].value
-                    if "max_speed" in frame.fields[x].name:
-                        result ["max_speed"] = frame.fields[x].value
                     if "total_ascent" in frame.fields[x].name:
                         result["total_ascent"] = frame.fields[x].value
                     if "total_descent" in frame.fields[x].name:
-                        result["total_descent"] = frame.fields[x].value 
+                        result["total_descent"] = frame.fields[x].value
                     if "max_speed" in frame.fields[x].name:
-                        result["max_speed"] = frame.fields[x].value
+                        if frame.fields[x].value is not None:
+                            result["max_speed"] = frame.fields[x].value
                     if "avg_speed" in frame.fields[x].name:
-                        result["avg_speed"] = frame.fields[x].value
+                        if frame.fields[x].value is not None:
+                           result["avg_speed"] = frame.fields[x].value
                     if "total_calories" in frame.fields[x].name:
                         result["total_calories"] = frame.fields[x].value
                     if "start_time" in frame.fields[x].name:
@@ -43,9 +94,8 @@ def readFitFile(fileName):
                         result["total_timer_time"] = frame.fields[x].value
                     if "total_distance" in frame.fields[x].name:
                         result["total_distance"] = frame.fields[x].value
-    for k, v in result.items():
-        print (k, v)
 
+    showResultsFromFit(result)
     return result
 
 def readCSVFileBC12(fileName):
@@ -73,13 +123,11 @@ def readCSVFileBC12(fileName):
                 result["total_time"] = row[9].replace(',','.')
                 result["total_fuel"] = row[10].replace(',','.')
                 line_count += 1
-    
-    for k, v in result.items():     
+
+    for k, v in result.items():
         print (k, v)
 
     return result
-
-
 
 def readCSVFileBC16(fileName):
     print ("Reading csv file ...")
@@ -110,7 +158,6 @@ def readCSVFileBC16(fileName):
         print (k, v)
 
     return result
-
 
 ##    ------------------------  create XML  -------------------------------   ##
 def saveToSmfFile(computerBike, fitResult, csvResult, notes, activityNumber):
@@ -401,7 +448,6 @@ def saveToSmfFile(computerBike, fitResult, csvResult, notes, activityNumber):
     file = "%s.smf"%(notes["file_name"])
     tree.write(file, encoding="utf-8", xml_declaration=True)
 
-
 def saveRunningToSmfFile(fitResult, notes, activityNumber):
     print ("Saving running to smf file ...")
     root = ET.Element("Activity")
@@ -590,15 +636,6 @@ def saveRunningToSmfFile(fitResult, notes, activityNumber):
 
     # training time [ms]
     trainingTime = ET.SubElement(generalInformation, "trainingTime")
-    
-    
-    minutes = fitResult["total_timer_time"]/60
-    print("test")
-    print(minutes)    
-#    x = time.strptime(fitResult["total_timer_time"], '%H:%M:%S')
-#    y = datetime.timedelta(hours=x.tm_hour,minutes=x.tm_min,seconds=x.tm_sec).total_seconds()
-    
-    
     trainingTime.text = str(fitResult["total_timer_time"]*100)
 
 
@@ -673,8 +710,6 @@ def saveRunningToSmfFile(fitResult, notes, activityNumber):
     file = "%s.smf"%(notes["file_name"])
     tree.write(file, encoding="utf-8", xml_declaration=True)
 
-
-
 def extractZip(fileName):
     print ("Extracting ...")
     file = "%s.%s"%(fileName,"zip")
@@ -728,9 +763,8 @@ def notes():
 
     return note
 
-
 def main():
-    
+
     computerBike = input("Computer Bike [1-2]: \n \
         1 - BC 16.16 \n \
         2 - BC 12.12 \n \
@@ -742,8 +776,8 @@ def main():
         if file.endswith(".zip"):
             activityNumber = file
             activityNumber = activityNumber.strip(".zip")
-        
-    
+
+
     confirmActivityNumber = input("Whether the activity number is: " + activityNumber + " [y/n]")
     if confirmActivityNumber == 'y':
         print("start reading the file")
@@ -752,13 +786,13 @@ def main():
     else:
         print("error")
         return
-        
+
     if activityNumber == 0:
         print("error")
-        return    
+        return
 
     extractZip(activityNumber)
-    fitResult = readFitFile(activityNumber)    
+    fitResult = readFitFile("%s_ACTIVITY.fit"%(activityNumber))
     if computerBike == "3":
         note = notes()
         note["temperature"] = input("Temperature: ")
@@ -772,13 +806,12 @@ def main():
 
         note = notes()
         saveToSmfFile(computerBike, fitResult, csvResult, note, activityNumber)
-    
+
     activityFile = "%s_ACTIVITY.%s"%(activityNumber,"fit")
     os.remove(activityFile)
     activityArchive = "%s.%s"%(activityNumber,"zip")
     os.remove(activityArchive)
 
-   
+
 if __name__ == '__main__':
     main()
-
