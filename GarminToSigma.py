@@ -710,6 +710,530 @@ def saveRunningToSmfFile(fitResult, notes, activityNumber):
     file = "%s.smf"%(notes["file_name"])
     tree.write(file, encoding="utf-8", xml_declaration=True)
 
+def saveBscCyclingToSmfFile(fitResult, notes, activityNumber):
+    print ("Saving running to smf file ...")
+    root = ET.Element("Activity")
+
+    root.set("fileDate", datetime.datetime.now().strftime('%a %b %d %H:%M:%S GMT%z %Y'))
+    root.set("revision", "400")
+    computer = ET.SubElement(root,"Computer")
+    computer.set("unit","user defined")
+    computer.set("serial","")
+    computer.set("activityType","Cycling")
+    computer.set("dateCode","")
+
+    generalInformation = ET.SubElement(root, "GeneralInformation")
+    user = ET.SubElement(generalInformation, "user")
+    user.text = "Standard"
+
+    #sport = ET.SubElement(generalInformation, "sport")
+    #sport.text = "running"
+
+    guid = ET.SubElement(generalInformation, "GUID")
+    guid.text = "0"
+
+    mdds = ET.SubElement(generalInformation, "modificationDateDeviceSync")
+    mdds.text = "0"
+
+    # Altitude uphill [dm]
+    altitudeDifferencesDownhill = ET.SubElement(generalInformation, "altitudeDifferencesDownhill")
+    altitudeDifferencesDownhill.text = str(fitResult["total_descent"]*1000)
+
+    # Altitude downhill [dm]
+    altitudeDifferencesUphill = ET.SubElement(generalInformation, "altitudeDifferencesUphill")
+    altitudeDifferencesUphill.text = str(fitResult["total_ascent"]*1000)
+    
+    # Altitude max
+    maximumAltitude = ET.SubElement(generalInformation, "maximumAltitude")
+    maximumAltitude.text = str(fitResult["max_altitude"]*1000)
+
+    #Cadence [rpm]
+    #averageCadence = ET.SubElement(generalInformation, "averageCadence")
+    #averageCadence.text = "1"
+
+    # Heart rate avg
+    averageHeartrate = ET.SubElement(generalInformation, "averageHeartrate")
+    averageHeartrate.text = str(fitResult["avg_heart_rate"])
+
+    # Hear rate max
+    maximumHeartrate = ET.SubElement(generalInformation, "maximumHeartrate")
+    maximumHeartrate.text = str(fitResult["max_heart_rate"])
+    
+    # ?????
+    hrMax = ET.SubElement(generalInformation, "hrMax")
+    hrMax.text = "300"
+
+    # Incline down [%]
+    #averageInclineDownhill = ET.SubElement(generalInformation, "averageInclineDownhill")
+    #averageInclineDownhill.text = "2"
+
+    # Incline up [%]
+    #averageInclineUphill = ET.SubElement(generalInformation, "averageInclineUphill")
+    #averageInclineUphill.text = "3"
+
+    # Incline min [%]
+    #maximumInclineDownhill = ET.SubElement(generalInformation, "maximumInclineDownhill")
+    #maximumInclineDownhill.text = "44"
+
+    # Incline max [%]
+    #maximumInclineUphill = ET.SubElement(generalInformation, "maximumInclineUphill")
+    #maximumInclineUphill.text = "55"
+
+    # ?????????
+    #averageRiseRateUphill = ET.SubElement(generalInformation, "averageRiseRateUphill")
+    #averageRiseRateUphill.text = "4"
+
+    # ???????????
+    #averageRiseRateDownhill = ET.SubElement(generalInformation, "averageRiseRateDownhill")
+    #averageRiseRateDownhill.text = "5"
+
+    # Speed avg [m/s]
+    averageSpeed = ET.SubElement(generalInformation, "averageSpeed")
+    averageSpeed.text = str(float (fitResult["avg_speed"]))
+
+    # Speed max [m/s]
+    maximumSpeed = ET.SubElement(generalInformation, "maximumSpeed")
+    maximumSpeed.text = str(float (fitResult["max_speed"]))
+
+    # Speed uphill [m/s]
+    #averageSpeedDownhill = ET.SubElement(generalInformation, "averageSpeedDownhill")
+    #averageSpeedDownhill.text = "6"
+     
+    # Speed downhill [m/s]
+    #averageSpeedUphill = ET.SubElement(generalInformation, "averageSpeedUphill")
+    #averageSpeedUphill.text = "7"
+
+    calibration = ET.SubElement(generalInformation, "calibration")
+    calibration.text = "false"
+
+    # Calories [kcal]
+    calories = ET.SubElement(generalInformation, "calories")
+    calories.text = str(fitResult["total_calories"])
+
+    dataType = ET.SubElement(generalInformation, "dataType")
+    dataType.text = "memory"
+
+    # Description
+    description = ET.SubElement(generalInformation, "description")
+    description.text = "description"
+
+    # Trip distance [m]
+    distance = ET.SubElement(generalInformation, "distance")
+    distance.text = str(float(fitResult["total_distance"]))
+
+    # Distance downhill
+    #distanceDownhill = ET.SubElement(generalInformation, "distanceDownhill")
+    #distanceDownhill.text = "0"
+
+    # Distance uphill
+    #distanceUphill = ET.SubElement(generalInformation, "distanceUphill")
+    #distanceUphill.text = "0"
+
+    externalLink = ET.SubElement(generalInformation, "externalLink")
+    externalLink.text = "%s/%s"%("https://connect.garmin.com/modern/activity",activityNumber)
+
+    # Linked Track
+    linkedRouteId = ET.SubElement(generalInformation, "linkedRouteId")
+    linkedRouteId.text = "0"
+
+    logVersion = ET.SubElement(generalInformation, "logVersion")
+    logVersion.text = "400"
+
+    manualTemperature = ET.SubElement(generalInformation, "manualTemperature")
+    manualTemperature.text = str(notes["temperature"])
+
+    # Cadence max [rpm]
+    #maximumCadence = ET.SubElement(generalInformation, "maximumCadence")
+    #maximumCadence.text = "0"
+
+    #minimumRiseRate = ET.SubElement(generalInformation, "minimumRiseRate")
+    #minimumRiseRate.text = "0"
+
+    #maximumRiseRate = ET.SubElement(generalInformation, "maximumRiseRate")
+    #maximumRiseRate.text = "0"
+
+    #minimumTemperature = ET.SubElement(generalInformation, "minimumTemperature")
+    #minimumTemperature.text = "400"
+
+    #maximumTemperature = ET.SubElement(generalInformation, "maximumTemperature")
+    #maximumTemperature.text = "0"
+
+    name = ET.SubElement(generalInformation, "name")
+    name.text = str(notes["file_name"])
+
+    pauseTime = ET.SubElement(generalInformation, "pauseTime")
+    pauseTime.text = ""
+
+    # 0-5
+    rating = ET.SubElement(generalInformation, "rating")
+    rating.text = str(notes["evaluation"])
+
+    # 0-4
+    feeling = ET.SubElement(generalInformation, "feeling")
+    feeling.text = str(notes["feelings"])
+
+
+    samplingRate = ET.SubElement(generalInformation, "samplingRate")
+    samplingRate.text = ""
+
+    startDate = ET.SubElement(generalInformation, "startDate")
+    startDate.text = fitResult["start_time"].strftime('%a %b %d %H:%M:%S GMT%z %Y')
+
+    statistic = ET.SubElement(generalInformation, "statistic")
+    statistic.text = "true"
+
+    timeOverZone = ET.SubElement(generalInformation, "timeOverZone")
+    timeOverZone.text = "0"
+
+    timeUnderZone = ET.SubElement(generalInformation, "timeUnderZone")
+    timeUnderZone.text = "0"
+
+    # 0-4
+    trackProfile = ET.SubElement(generalInformation, "trackProfile")
+    trackProfile.text = str(notes["trip_profile"])
+
+    # Training type (short info)
+    trainingType = ET.SubElement(generalInformation, "trainingType")
+    trainingType.text = "training type"
+
+    # training time [ms]
+    trainingTime = ET.SubElement(generalInformation, "trainingTime")
+    trainingTime.text = str(fitResult["total_timer_time"]*100)
+
+
+    # training time uphill [ms]
+    #trainingTimeDownhill = ET.SubElement(generalInformation, "trainingTimeDownhill")
+    #trainingTimeDownhill.text = ""
+    
+    # training time downhill [ms]
+    #trainingTimeUphill = ET.SubElement(generalInformation, "trainingTimeUphill")
+    #trainingTimeUphill.text = ""
+
+    unitId = ET.SubElement(generalInformation, "unitId")
+    unitId.text = ""
+
+    # 0-7
+    # 0 - sunny
+    # 1 - loght cloud
+    # 2 - Cloudy
+    # 3 - Light rain
+    # 4 - Rain
+    # 5 - Storm
+    # 6 - Snow
+    # 7 - fog
+    weather = ET.SubElement(generalInformation, "weather")
+    weather.text = str(notes["weather"])
+
+
+    # 0-12
+    wind = ET.SubElement(generalInformation, "wind")
+    wind.text = str(notes["wind"])
+
+    #zone1Start = ET.SubElement(generalInformation, "zone1Start")
+    #zone1Start.text = "15"
+
+    #zone2Start = ET.SubElement(generalInformation, "zone2Start")
+    #zone2Start.text = "15"
+
+    #zone3Start = ET.SubElement(generalInformation, "zone3Start")
+    #zone3Start.text = "15"
+
+    #zone3End = ET.SubElement(generalInformation, "zone3End")
+    #zone3End.text = "0"
+
+    activityStatus = ET.SubElement(generalInformation, "activityStatus")
+    activityStatus.text = "none"
+
+    activityTrackerDayComplete = ET.SubElement(generalInformation, "activityTrackerDayComplete")
+    activityTrackerDayComplete.text = "false"
+
+    compGUID = ET.SubElement(generalInformation, "compGUID")
+
+    compStartDate = ET.SubElement(generalInformation, "compStartDate")
+    compStartDate.text = "0"
+
+    compName = ET.SubElement(generalInformation, "compName")
+
+    compDistance = ET.SubElement(generalInformation, "compDistance")
+    compDistance.text = "0"
+
+    compTime = ET.SubElement(generalInformation, "compTime")
+    compTime.text = "0"
+
+    compTransitionDuration = ET.SubElement(generalInformation, "compTransitionDuration")
+    compTransitionDuration.text = "0"
+
+    sharingInfo = ET.SubElement(generalInformation, "sharingInfo")
+    sharingInfo.text = '{"facebookId":"0","komootId":"0","sigmaStatisticsId":"0","stravaId":"0","trainingPeaksId":"0","twitterId":"0","twoPeaksId":"0"}'
+
+    Participant = ET.SubElement(generalInformation, "Participant")
+
+    tree = ET.ElementTree(root)
+    file = "%s.smf"%(notes["file_name"])
+    tree.write(file, encoding="utf-8", xml_declaration=True)
+
+def saveGarminCyclingToSmfFile(fitResult, notes, activityNumber):
+    print ("Saving running to smf file ...")
+    root = ET.Element("Activity")
+
+    root.set("fileDate", datetime.datetime.now().strftime('%a %b %d %H:%M:%S GMT%z %Y'))
+    root.set("revision", "400")
+    computer = ET.SubElement(root,"Computer")
+    computer.set("unit","user defined")
+    computer.set("serial","")
+    computer.set("activityType","Cycling")
+    computer.set("dateCode","")
+
+    generalInformation = ET.SubElement(root, "GeneralInformation")
+    user = ET.SubElement(generalInformation, "user")
+    user.text = "Standard"
+
+    #sport = ET.SubElement(generalInformation, "sport")
+    #sport.text = "running"
+
+    guid = ET.SubElement(generalInformation, "GUID")
+    guid.text = "0"
+
+    mdds = ET.SubElement(generalInformation, "modificationDateDeviceSync")
+    mdds.text = "0"
+
+    # Altitude uphill [dm]
+    altitudeDifferencesDownhill = ET.SubElement(generalInformation, "altitudeDifferencesDownhill")
+    altitudeDifferencesDownhill.text = str(fitResult["total_descent"]*1000)
+
+    # Altitude downhill [dm]
+    altitudeDifferencesUphill = ET.SubElement(generalInformation, "altitudeDifferencesUphill")
+    altitudeDifferencesUphill.text = str(fitResult["total_ascent"]*1000)
+    
+    # Altitude max
+    maximumAltitude = ET.SubElement(generalInformation, "maximumAltitude")
+    maximumAltitude.text = str(fitResult["max_altitude"]*1000)
+
+    #Cadence [rpm]
+    #averageCadence = ET.SubElement(generalInformation, "averageCadence")
+    #averageCadence.text = "1"
+
+    # Heart rate avg
+    averageHeartrate = ET.SubElement(generalInformation, "averageHeartrate")
+    averageHeartrate.text = str(fitResult["avg_heart_rate"])
+
+    # Hear rate max
+    maximumHeartrate = ET.SubElement(generalInformation, "maximumHeartrate")
+    maximumHeartrate.text = str(fitResult["max_heart_rate"])
+    
+    # ?????
+    hrMax = ET.SubElement(generalInformation, "hrMax")
+    hrMax.text = "300"
+
+    # Incline down [%]
+    #averageInclineDownhill = ET.SubElement(generalInformation, "averageInclineDownhill")
+    #averageInclineDownhill.text = "2"
+
+    # Incline up [%]
+    #averageInclineUphill = ET.SubElement(generalInformation, "averageInclineUphill")
+    #averageInclineUphill.text = "3"
+
+    # Incline min [%]
+    #maximumInclineDownhill = ET.SubElement(generalInformation, "maximumInclineDownhill")
+    #maximumInclineDownhill.text = "44"
+
+    # Incline max [%]
+    #maximumInclineUphill = ET.SubElement(generalInformation, "maximumInclineUphill")
+    #maximumInclineUphill.text = "55"
+
+    # ?????????
+    #averageRiseRateUphill = ET.SubElement(generalInformation, "averageRiseRateUphill")
+    #averageRiseRateUphill.text = "4"
+
+    # ???????????
+    #averageRiseRateDownhill = ET.SubElement(generalInformation, "averageRiseRateDownhill")
+    #averageRiseRateDownhill.text = "5"
+
+    # Speed avg [m/s]
+    averageSpeed = ET.SubElement(generalInformation, "averageSpeed")
+    averageSpeed.text = str(float (fitResult["avg_speed"]))
+
+    # Speed max [m/s]
+    maximumSpeed = ET.SubElement(generalInformation, "maximumSpeed")
+    maximumSpeed.text = str(float (fitResult["max_speed"]))
+
+    # Speed uphill [m/s]
+    #averageSpeedDownhill = ET.SubElement(generalInformation, "averageSpeedDownhill")
+    #averageSpeedDownhill.text = "6"
+     
+    # Speed downhill [m/s]
+    #averageSpeedUphill = ET.SubElement(generalInformation, "averageSpeedUphill")
+    #averageSpeedUphill.text = "7"
+
+    calibration = ET.SubElement(generalInformation, "calibration")
+    calibration.text = "false"
+
+    # Calories [kcal]
+    calories = ET.SubElement(generalInformation, "calories")
+    calories.text = str(fitResult["total_calories"])
+
+    dataType = ET.SubElement(generalInformation, "dataType")
+    dataType.text = "memory"
+
+    # Description
+    description = ET.SubElement(generalInformation, "description")
+    description.text = "description"
+
+    # Trip distance [m]
+    distance = ET.SubElement(generalInformation, "distance")
+    distance.text = str(float(fitResult["total_distance"]))
+
+    # Distance downhill
+    #distanceDownhill = ET.SubElement(generalInformation, "distanceDownhill")
+    #distanceDownhill.text = "0"
+
+    # Distance uphill
+    #distanceUphill = ET.SubElement(generalInformation, "distanceUphill")
+    #distanceUphill.text = "0"
+
+    externalLink = ET.SubElement(generalInformation, "externalLink")
+    externalLink.text = "%s/%s"%("https://connect.garmin.com/modern/activity",activityNumber)
+
+    # Linked Track
+    linkedRouteId = ET.SubElement(generalInformation, "linkedRouteId")
+    linkedRouteId.text = "0"
+
+    logVersion = ET.SubElement(generalInformation, "logVersion")
+    logVersion.text = "400"
+
+    manualTemperature = ET.SubElement(generalInformation, "manualTemperature")
+    manualTemperature.text = str(notes["temperature"])
+
+    # Cadence max [rpm]
+    #maximumCadence = ET.SubElement(generalInformation, "maximumCadence")
+    #maximumCadence.text = "0"
+
+    #minimumRiseRate = ET.SubElement(generalInformation, "minimumRiseRate")
+    #minimumRiseRate.text = "0"
+
+    #maximumRiseRate = ET.SubElement(generalInformation, "maximumRiseRate")
+    #maximumRiseRate.text = "0"
+
+    #minimumTemperature = ET.SubElement(generalInformation, "minimumTemperature")
+    #minimumTemperature.text = "400"
+
+    #maximumTemperature = ET.SubElement(generalInformation, "maximumTemperature")
+    #maximumTemperature.text = "0"
+
+    name = ET.SubElement(generalInformation, "name")
+    name.text = str(notes["file_name"])
+
+    pauseTime = ET.SubElement(generalInformation, "pauseTime")
+    pauseTime.text = ""
+
+    # 0-5
+    rating = ET.SubElement(generalInformation, "rating")
+    rating.text = str(notes["evaluation"])
+
+    # 0-4
+    feeling = ET.SubElement(generalInformation, "feeling")
+    feeling.text = str(notes["feelings"])
+
+
+    samplingRate = ET.SubElement(generalInformation, "samplingRate")
+    samplingRate.text = ""
+
+    startDate = ET.SubElement(generalInformation, "startDate")
+    startDate.text = fitResult["start_time"].strftime('%a %b %d %H:%M:%S GMT%z %Y')
+
+    statistic = ET.SubElement(generalInformation, "statistic")
+    statistic.text = "true"
+
+    timeOverZone = ET.SubElement(generalInformation, "timeOverZone")
+    timeOverZone.text = "0"
+
+    timeUnderZone = ET.SubElement(generalInformation, "timeUnderZone")
+    timeUnderZone.text = "0"
+
+    # 0-4
+    trackProfile = ET.SubElement(generalInformation, "trackProfile")
+    trackProfile.text = str(notes["trip_profile"])
+
+    # Training type (short info)
+    trainingType = ET.SubElement(generalInformation, "trainingType")
+    trainingType.text = "training type"
+
+    # training time [ms]
+    trainingTime = ET.SubElement(generalInformation, "trainingTime")
+    trainingTime.text = str(fitResult["total_timer_time"]*100)
+
+
+    # training time uphill [ms]
+    #trainingTimeDownhill = ET.SubElement(generalInformation, "trainingTimeDownhill")
+    #trainingTimeDownhill.text = ""
+    
+    # training time downhill [ms]
+    #trainingTimeUphill = ET.SubElement(generalInformation, "trainingTimeUphill")
+    #trainingTimeUphill.text = ""
+
+    unitId = ET.SubElement(generalInformation, "unitId")
+    unitId.text = ""
+
+    # 0-7
+    # 0 - sunny
+    # 1 - loght cloud
+    # 2 - Cloudy
+    # 3 - Light rain
+    # 4 - Rain
+    # 5 - Storm
+    # 6 - Snow
+    # 7 - fog
+    weather = ET.SubElement(generalInformation, "weather")
+    weather.text = str(notes["weather"])
+
+
+    # 0-12
+    wind = ET.SubElement(generalInformation, "wind")
+    wind.text = str(notes["wind"])
+
+    #zone1Start = ET.SubElement(generalInformation, "zone1Start")
+    #zone1Start.text = "15"
+
+    #zone2Start = ET.SubElement(generalInformation, "zone2Start")
+    #zone2Start.text = "15"
+
+    #zone3Start = ET.SubElement(generalInformation, "zone3Start")
+    #zone3Start.text = "15"
+
+    #zone3End = ET.SubElement(generalInformation, "zone3End")
+    #zone3End.text = "0"
+
+    activityStatus = ET.SubElement(generalInformation, "activityStatus")
+    activityStatus.text = "none"
+
+    activityTrackerDayComplete = ET.SubElement(generalInformation, "activityTrackerDayComplete")
+    activityTrackerDayComplete.text = "false"
+
+    compGUID = ET.SubElement(generalInformation, "compGUID")
+
+    compStartDate = ET.SubElement(generalInformation, "compStartDate")
+    compStartDate.text = "0"
+
+    compName = ET.SubElement(generalInformation, "compName")
+
+    compDistance = ET.SubElement(generalInformation, "compDistance")
+    compDistance.text = "0"
+
+    compTime = ET.SubElement(generalInformation, "compTime")
+    compTime.text = "0"
+
+    compTransitionDuration = ET.SubElement(generalInformation, "compTransitionDuration")
+    compTransitionDuration.text = "0"
+
+    sharingInfo = ET.SubElement(generalInformation, "sharingInfo")
+    sharingInfo.text = '{"facebookId":"0","komootId":"0","sigmaStatisticsId":"0","stravaId":"0","trainingPeaksId":"0","twitterId":"0","twoPeaksId":"0"}'
+
+    Participant = ET.SubElement(generalInformation, "Participant")
+
+    tree = ET.ElementTree(root)
+    file = "%s.smf"%(notes["file_name"])
+    tree.write(file, encoding="utf-8", xml_declaration=True)
+
 def extractZip(fileName):
     print ("Extracting ...")
     file = "%s.%s"%(fileName,"zip")
@@ -768,7 +1292,9 @@ def main():
     computerBike = input("Computer Bike [1-2]: \n \
         1 - BC 16.16 \n \
         2 - BC 12.12 \n \
-        3 - running \n \
+        3 - cycling \n \
+        4 - BSC \n \
+        5 - running \n \
         -> ")
 
     activityNumber = "0"
@@ -793,11 +1319,9 @@ def main():
 
     extractZip(activityNumber)
     fitResult = readFitFile("%s_ACTIVITY.fit"%(activityNumber))
-    if computerBike == "3":
-        note = notes()
-        note["temperature"] = input("Temperature: ")
-        saveRunningToSmfFile(fitResult, note, activityNumber)
-    else:
+    
+    # BC12 or BC16
+    if computerBike == "1" or computerBike == "2":
         csvResult={"trip_distance":50.0}
         if computerBike == '1':
             csvResult = readCSVFileBC16("sigmaBC16")
@@ -806,7 +1330,22 @@ def main():
 
         note = notes()
         saveToSmfFile(computerBike, fitResult, csvResult, note, activityNumber)
-
+    # garmin cycling
+    elif computerBike == "3":
+        note = notes()
+        note["temperature"] = input("Temperature: ")
+        saveGarminCyclingToSmfFile(fitResult, note, activityNumber)
+    # BSC
+    elif computerBike == "4":
+        note = notes()
+        note["temperature"] = input("Temperature: ")
+        saveBscCyclingToSmfFile(fitResult, note, activityNumber)    
+    # running
+    if computerBike == "5":
+        note = notes()
+        note["temperature"] = input("Temperature: ")
+        saveRunningToSmfFile(fitResult, note, activityNumber)
+    
     activityFile = "%s_ACTIVITY.%s"%(activityNumber,"fit")
     os.remove(activityFile)
     activityArchive = "%s.%s"%(activityNumber,"zip")
