@@ -29,7 +29,7 @@ def showResultsFromFit(data):
             print(k, v,  konwerujMpSOnKmPh(v))
         elif k == "max_speed":
             print(k, v, konwerujMpSOnKmPh(v))
-        else:    
+        else:
             print (k, v)
 
 def readFitFile(filename):
@@ -71,15 +71,20 @@ def readFitFile(filename):
                             if(result["min_altitude"] > frame.fields[x].value):
                                 result["min_altitude"] = frame.fields[x].value
                     if "avg_heart_rate" in frame.fields[x].name:
-                        result["avg_heart_rate"] = frame.fields[x].value
+                        if frame.fields[x].value is not None:
+                            result["avg_heart_rate"] = frame.fields[x].value
                     if "max_heart_rate" in frame.fields[x].name:
-                        result["max_heart_rate"] = frame.fields[x].value
+                        if frame.fields[x].value is not None:
+                            result["max_heart_rate"] = frame.fields[x].value
                     if "total_timer_time" in frame.fields[x].name:
-                        result["total_timer_time"] = frame.fields[x].value
+                        if frame.fields[x].value is not None:
+                            result["total_timer_time"] = frame.fields[x].value
                     if "total_ascent" in frame.fields[x].name:
-                        result["total_ascent"] = frame.fields[x].value
+                        if frame.fields[x].value is not None:
+                            result["total_ascent"] = frame.fields[x].value
                     if "total_descent" in frame.fields[x].name:
-                        result["total_descent"] = frame.fields[x].value
+                        if frame.fields[x].value is not None:
+                            result["total_descent"] = frame.fields[x].value
                     if "max_speed" in frame.fields[x].name:
                         if frame.fields[x].value is not None:
                             result["max_speed"] = frame.fields[x].value
@@ -87,13 +92,17 @@ def readFitFile(filename):
                         if frame.fields[x].value is not None:
                            result["avg_speed"] = frame.fields[x].value
                     if "total_calories" in frame.fields[x].name:
-                        result["total_calories"] = frame.fields[x].value
+                        if frame.fields[x].value is not None:
+                            result["total_calories"] = frame.fields[x].value
                     if "start_time" in frame.fields[x].name:
-                        result["start_time"] = frame.fields[x].value
+                        if frame.fields[x].value is not None:
+                            result["start_time"] = frame.fields[x].value
                     if "total_timer_time" in frame.fields[x].name:
-                        result["total_timer_time"] = frame.fields[x].value
+                        if frame.fields[x].value is not None:
+                            result["total_timer_time"] = frame.fields[x].value
                     if "total_distance" in frame.fields[x].name:
-                        result["total_distance"] = frame.fields[x].value
+                        if frame.fields[x].value is not None:
+                            result["total_distance"] = frame.fields[x].value
 
     showResultsFromFit(result)
     return result
