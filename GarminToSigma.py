@@ -19,6 +19,17 @@ def konwerujMpSOnKmPh(MetersPerSeconds):
     kilometry_na_godzine = MetersPerSeconds * przelicznik
     return kilometry_na_godzine
 
+def konwertujMpSOnMinPerKm(speed_mps):
+    # m/s -> min/km
+    if speed_mps <= 0:
+        return "Prędkość musi być większa niż 0"
+
+    min_per_km = 1000 / (speed_mps * 60)
+    minutes = int(min_per_km)
+    seconds = int(round((min_per_km - minutes) * 60))
+
+    return f"{minutes}:{seconds:02d}"
+
 def showResultsFromFit(data):
     for k, v in data.items():
         if k == "total_timer_time":
@@ -26,9 +37,9 @@ def showResultsFromFit(data):
         elif k == "total_distance":
             print(k, v, 'm',)
         elif k == "avg_speed":
-            print(k, v,  konwerujMpSOnKmPh(v))
+            print(k, v, "m/s", konwerujMpSOnKmPh(v), "km/h", konwertujMpSOnMinPerKm(v), "min/km" )
         elif k == "max_speed":
-            print(k, v, konwerujMpSOnKmPh(v))
+            print(k, v, "m/s", konwerujMpSOnKmPh(v), "km/h", konwertujMpSOnMinPerKm(v), "min/km" )
         else:
             print (k, v)
 
@@ -505,7 +516,7 @@ def saveHikingToSmfFile(fitResult, notes, activityNumber):
     # Hear rate max
     maximumHeartrate = ET.SubElement(generalInformation, "maximumHeartrate")
     maximumHeartrate.text = str(fitResult["max_heart_rate"])
-    
+
     # ?????
     hrMax = ET.SubElement(generalInformation, "hrMax")
     hrMax.text = "300"
@@ -534,13 +545,13 @@ def saveHikingToSmfFile(fitResult, notes, activityNumber):
     #averageRiseRateDownhill = ET.SubElement(generalInformation, "averageRiseRateDownhill")
     #averageRiseRateDownhill.text = "5"
 
-    # Speed avg [m/s]
+    # Speed avg [min/km]
     averageSpeed = ET.SubElement(generalInformation, "averageSpeed")
-    averageSpeed.text = str(float (fitResult["avg_speed"]))
+    averageSpeed.text = konwertujMpSOnMinPerKm(float(fitResult["avg_speed"]))
 
-    # Speed max [m/s]
+    # Speed max [min/km]
     maximumSpeed = ET.SubElement(generalInformation, "maximumSpeed")
-    maximumSpeed.text = str(float (fitResult["max_speed"]))
+    maximumSpeed.text = konwertujMpSOnMinPerKm(float (fitResult["max_speed"]))
 
     # Speed uphill [m/s]
     #averageSpeedDownhill = ET.SubElement(generalInformation, "averageSpeedDownhill")
