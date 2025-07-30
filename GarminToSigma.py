@@ -25,10 +25,10 @@ def konwertujMpSOnMinPerKm(speed_mps):
         return "Prędkość musi być większa niż 0"
 
     min_per_km = 1000 / (speed_mps * 60)
-    minutes = int(min_per_km)
-    seconds = int(round((min_per_km - minutes) * 60))
+    minutes_ = int(min_per_km)
+    seconds_ = int(round((min_per_km - minutes_) * 60))
 
-    return f"{minutes}:{seconds:02d}"
+    return datetime.timedelta(minutes=minutes_, seconds=seconds_)
 
 def showResultsFromFit(data):
     for k, v in data.items():
@@ -37,9 +37,9 @@ def showResultsFromFit(data):
         elif k == "total_distance":
             print(k, v, 'm',)
         elif k == "avg_speed":
-            print(k, v, "m/s", konwerujMpSOnKmPh(v), "km/h", konwertujMpSOnMinPerKm(v), "min/km" )
+            print(k, v, "m/s", konwerujMpSOnKmPh(v), "km/h", str(konwertujMpSOnMinPerKm(v)), "/km" )
         elif k == "max_speed":
-            print(k, v, "m/s", konwerujMpSOnKmPh(v), "km/h", konwertujMpSOnMinPerKm(v), "min/km" )
+            print(k, v, "m/s", konwerujMpSOnKmPh(v), "km/h", str(konwertujMpSOnMinPerKm(v)), "/km" )
         else:
             print (k, v)
 
@@ -545,13 +545,13 @@ def saveHikingToSmfFile(fitResult, notes, activityNumber):
     #averageRiseRateDownhill = ET.SubElement(generalInformation, "averageRiseRateDownhill")
     #averageRiseRateDownhill.text = "5"
 
-    # Speed avg [min/km]
+    # Speed avg [m/s]
     averageSpeed = ET.SubElement(generalInformation, "averageSpeed")
-    averageSpeed.text = konwertujMpSOnMinPerKm(float(fitResult["avg_speed"]))
+    averageSpeed.text = str(float(fitResult["avg_speed"]))
 
-    # Speed max [min/km]
+    # Speed max [m/s]
     maximumSpeed = ET.SubElement(generalInformation, "maximumSpeed")
-    maximumSpeed.text = konwertujMpSOnMinPerKm(float (fitResult["max_speed"]))
+    maximumSpeed.text = str(float(fitResult["max_speed"]))
 
     # Speed uphill [m/s]
     #averageSpeedDownhill = ET.SubElement(generalInformation, "averageSpeedDownhill")
@@ -818,7 +818,7 @@ def saveRunningToSmfFile(fitResult, notes, activityNumber):
     # Speed uphill [m/s]
     #averageSpeedDownhill = ET.SubElement(generalInformation, "averageSpeedDownhill")
     #averageSpeedDownhill.text = "6"
-     
+
     # Speed downhill [m/s]
     #averageSpeedUphill = ET.SubElement(generalInformation, "averageSpeedUphill")
     #averageSpeedUphill.text = "7"
@@ -1637,7 +1637,7 @@ def main():
     activityFile = "%s_ACTIVITY.%s"%(activityNumber,"fit")
     os.remove(activityFile)
     activityArchive = "%s.%s"%(activityNumber,"zip")
-    os.remove(activityArchive)
+    #os.remove(activityArchive)
 
 
 if __name__ == '__main__':
