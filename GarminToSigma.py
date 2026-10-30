@@ -9,6 +9,7 @@ import shutil
 import os
 import re
 import math
+import argparse
 from garminconnect import Garmin
 from garminconnect.api.activities import ActivityDownloadFormat
 
@@ -48,6 +49,10 @@ def _activity_type(activity):
             activity_type_dto.get("typeKey", ""),
             activity_type_dto.get("typeDescription", ""),
         )
+    labels += (
+        activity.get("sport", ""),
+        activity.get("activity_type", ""),
+    )
 
     normalized_labels = " ".join(str(label).lower() for label in labels)
     if "run" in normalized_labels:
@@ -148,7 +153,10 @@ def _safe_activity_name(activity_name, activity_id, activity_date):
     safe_name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", activity_name).strip(" .")
     if not safe_name:
         safe_name = "activity"
-    return "%s_%s_%s" % (safe_name, activity_date, activity_id)
+    parts = [safe_name, activity_date]
+    if activity_id:
+        parts.append(activity_id)
+    return "_".join(parts)
 
 
 def _activity_fit_is_cached(activity):
@@ -293,7 +301,7 @@ def showResultsFromFit(data):
         elif k == "total_distance":
             print(k, v, 'm',)
         elif k in {"avg_temperature", "min_temperature", "max_temperature"}:
-            print(k, v, "°C")
+            print(k, v, "°C" if v is not None else "(unavailable)")
         elif k == "avg_speed":
             print(k, v, "m/s", konwerujMpSOnKmPh(v), "km/h", str(konwertujMpSOnMinPerKm(v)), "/km" )
         elif k == "max_speed":
@@ -311,7 +319,10 @@ def showSmfInputData(fit_result, note, activity_type, activity_id):
     print("SMF metadata:")
     for key, value in note.items():
         if key == "temperature":
-            print("%s: %.1f °C" % (key, value))
+            if value in (None, ""):
+                print("%s: unavailable" % key)
+            else:
+                print("%s: %.1f °C" % (key, value))
         elif key == "weather":
             description = note.get("weather_description") or "unknown"
             print("%s: %s (%s)" % (key, value, description))
@@ -407,6 +418,10 @@ def readFitFile(filename):
                     if field_name == "start_time":
                         if field_value is not None:
                             result["start_time"] = field_value
+                    if field_name == "sport" and field_value is not None:
+                        result["sport"] = field_value
+                    if field_name in {"name", "activity_name"} and field_value:
+                        result["activity_name"] = str(field_value)
                     if field_name == "total_distance":
                         if field_value is not None:
                             result["total_distance"] = field_value
@@ -1851,23 +1866,37 @@ def saveGarminCyclingToSmfFile(fitResult, notes, activityNumber):
     file = "%s.smf"%(notes["file_name"])
     tree.write(file, encoding="utf-8", xml_declaration=True)
 
-def notes(activity, activity_id, activity_type, fit_result, weather_data, activity_date):
+def notes(
+    activity,
+    activity_id,
+    activity_type,
+    fit_result,
+    weather_data,
+    activity_date,
+    allow_missing_temperature=False,
+):
     activity_name = activity.get("activityName") or activity_type.title()
+    fit_temperature = fit_result.get("avg_temperature")
     temperature_celsius = _find_weather_value(weather_data, {"temperaturecelsius"})
     temperature_fahrenheit = _find_weather_value(
         weather_data,
         {"temperature", "airtemperature", "temp"},
     )
-    if temperature_celsius is not None:
+    if fit_temperature is not None:
+        temperature = float(fit_temperature)
+    elif temperature_celsius is not None:
         temperature = float(temperature_celsius)
     elif temperature_fahrenheit is not None:
         temperature = _garmin_temperature_celsius(temperature_fahrenheit)
     else:
         temperature = fit_result.get("avg_temperature")
     if temperature is None:
-        raise ValueError(
-            "Garmin Connect and the activity FIT file do not provide a temperature."
-        )
+        if allow_missing_temperature:
+            temperature = ""
+        else:
+            raise ValueError(
+                "Garmin Connect and the activity FIT file do not provide a temperature."
+            )
 
     wind_speed_mph = _find_weather_value(weather_data, {"windspeed"})
     wind_speed_mps = _garmin_wind_speed_mps(wind_speed_mph)
@@ -1937,7 +1966,6 @@ def _get_cycling_running_activities(garmin, start_date):
     return sorted(
         activities_by_id.values(),
         key=lambda activity: activity.get("startTimeLocal", ""),
-        reverse=True,
     )
 
 
@@ -1951,7 +1979,7 @@ def _prompt_start_date():
 
 
 def _show_activity_list(activities):
-    print("Cycling and running activities (newest first):")
+    print("Cycling and running activities (oldest first):")
     for index, activity in enumerate(activities, start=1):
         distance = activity.get("distance")
         distance_km = float(distance) / 1000 if distance is not None else None
@@ -1990,34 +2018,189 @@ def _convert_activity(garmin, selected_activity):
     fit_path = _download_activity_fit(garmin, activity_number, activity_date)
     fit_result = readFitFile(fit_path)
     _apply_garmin_elevation_stats(fit_result, selected_activity)
-    activity_name = (
-        (activity_details or selected_activity).get("activityName")
-        or activity_type.title()
-    )
-    output_name = _safe_activity_name(
-        activity_name, activity_number, activity_date
-    )
-    _download_activity_gpx(garmin, activity_number, output_name)
-    note = notes(
+    _complete_activity_conversion(
         activity_details or selected_activity,
         activity_number,
         activity_type,
         fit_result,
         weather_data,
         activity_date,
+        gpx_downloader=garmin,
     )
-    showSmfInputData(fit_result, note, activity_type, activity_number)
+
+
+def _complete_activity_conversion(
+    activity,
+    activity_id,
+    activity_type,
+    fit_result,
+    weather_data,
+    activity_date,
+    gpx_downloader=None,
+):
+    activity_name = (
+        activity.get("activityName")
+        or fit_result.get("activity_name")
+        or activity_type.title()
+    )
+    output_name = _safe_activity_name(activity_name, activity_id, activity_date)
+    if gpx_downloader is not None:
+        _download_activity_gpx(gpx_downloader, activity_id, output_name)
+
+    note = notes(
+        activity,
+        activity_id,
+        activity_type,
+        fit_result,
+        weather_data,
+        activity_date,
+        allow_missing_temperature=gpx_downloader is None,
+    )
+    showSmfInputData(fit_result, note, activity_type, activity_id)
     if input("Save SMF file? [t/N]: ").strip().lower() not in {"t", "tak"}:
         print("SMF file not saved.")
         return
 
     if activity_type == "running":
-        saveRunningToSmfFile(fit_result, note, activity_number)
+        saveRunningToSmfFile(fit_result, note, activity_id)
     else:
-        saveGarminCyclingToSmfFile(fit_result, note, activity_number)
+        saveGarminCyclingToSmfFile(fit_result, note, activity_id)
 
 
-def main():
+def _find_fit_files(directory):
+    if not os.path.isdir(directory):
+        raise NotADirectoryError("FIT search directory does not exist: %s" % directory)
+
+    fit_files = []
+    for current_directory, directory_names, file_names in os.walk(directory):
+        directory_names[:] = sorted(
+            name for name in directory_names
+            if name not in {".git", ".venv", "__pycache__"}
+        )
+        for file_name in file_names:
+            if file_name.lower().endswith(".fit"):
+                fit_files.append(
+                    os.path.join(current_directory, file_name)
+                )
+    return sorted(fit_files)
+
+
+def _offline_activity_details(fit_path, fit_result):
+    start_time = fit_result.get("start_time")
+    if isinstance(start_time, datetime.datetime):
+        activity_date = start_time.date().isoformat()
+    elif isinstance(start_time, datetime.date):
+        activity_date = start_time.isoformat()
+    else:
+        date_match = re.search(r"\d{4}-\d{2}-\d{2}", os.path.basename(fit_path))
+        if not date_match:
+            raise ValueError(
+                "The FIT file does not contain a start date and its filename "
+                "does not include one."
+            )
+        activity_date = date_match.group(0)
+
+    fit_path_stem = os.path.splitext(os.path.basename(fit_path))[0]
+    activity_id_match = re.search(r"(?:^|_)(\d+)(?:_|$)", fit_path_stem)
+    activity_id = activity_id_match.group(1) if activity_id_match else ""
+    fallback_name = re.sub(
+        r"_ACTIVITY$", "", fit_path_stem, flags=re.IGNORECASE
+    )
+    fallback_name = re.sub(r"_\d{4}-\d{2}-\d{2}", "", fallback_name)
+    if activity_id:
+        fallback_name = re.sub(
+            r"(?:^|_)%s$" % re.escape(activity_id),
+            "",
+            fallback_name,
+        )
+    activity_name = fit_result.get("activity_name") or fallback_name or "activity"
+
+    activity_type = _activity_type(fit_result)
+    if activity_type is None:
+        normalized_filename = fit_path_stem.lower()
+        if "run" in normalized_filename:
+            activity_type = "running"
+        elif "cycl" in normalized_filename or "bike" in normalized_filename:
+            activity_type = "cycling"
+    if activity_type is None:
+        selection = input(
+            "FIT activity type is not identifiable. Enter c for cycling, "
+            "r for running: "
+        ).strip().lower()
+        if selection in {"c", "cycling"}:
+            activity_type = "cycling"
+        elif selection in {"r", "running"}:
+            activity_type = "running"
+        else:
+            raise ValueError("Choose c/cycling or r/running for the FIT file.")
+
+    return {
+        "activityName": activity_name,
+        "activityId": activity_id,
+        "activity_date": activity_date,
+        "activity_type": activity_type,
+    }
+
+
+def _convert_offline_fit(fit_path):
+    fit_result = readFitFile(fit_path)
+    activity = _offline_activity_details(fit_path, fit_result)
+    _complete_activity_conversion(
+        activity,
+        activity["activityId"],
+        activity["activity_type"],
+        fit_result,
+        {},
+        activity["activity_date"],
+    )
+
+
+def _run_offline(directory):
+    processed_files = set()
+    while True:
+        fit_files = [
+            path for path in _find_fit_files(directory)
+            if path not in processed_files
+        ]
+        if not fit_files:
+            print("No more FIT files to review.")
+            return
+
+        selected_fit = None
+        for index, fit_path in enumerate(fit_files, start=1):
+            print("%d. %s" % (index, fit_path))
+            confirmation = input(
+                "Is this the activity to convert? [y/N/q]: "
+            ).strip().lower()
+            processed_files.add(fit_path)
+            if confirmation == "q":
+                return
+            if confirmation in {"y", "yes", "t", "tak"}:
+                selected_fit = fit_path
+                break
+
+        if selected_fit is None:
+            print("No FIT file was selected.")
+            return
+
+        _convert_offline_fit(selected_fit)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Convert Garmin activities to Sigma SMF.")
+    parser.add_argument(
+        "--offline",
+        nargs="?",
+        const=PROJECT_DIR,
+        metavar="DIRECTORY",
+        help="search for FIT files in DIRECTORY (default: project directory) without Garmin Connect",
+    )
+    args = parser.parse_args(argv)
+
+    if args.offline is not None:
+        _run_offline(os.path.abspath(os.path.expanduser(args.offline)))
+        return
+
     garmin = Garmin()
     garmin.login(TOKEN_DIR)
 
