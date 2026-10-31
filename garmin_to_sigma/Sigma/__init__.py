@@ -1,0 +1,1 @@
+"""Sigma output format."""
