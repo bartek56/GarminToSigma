@@ -5,6 +5,7 @@ import io
 import os
 import shutil
 import zipfile
+from dataclasses import replace
 
 from garminconnect import Garmin
 from garminconnect.api.activities import ActivityDownloadFormat
@@ -112,6 +113,14 @@ class GarminClient:
 
     def get_details(self, activity_id: str) -> dict:
         return self.client.get_activity(activity_id)
+
+    def enrich_activity(self, activity: Activity, details: dict) -> Activity:
+        activity_type = self.activity_type(details) or activity.activity_type
+        return replace(
+            activity,
+            name=details.get("activityName") or activity.name,
+            activity_type=activity_type,
+        )
 
     def get_weather(self, activity_id: str) -> dict:
         return self.client.get_activity_weather(activity_id)

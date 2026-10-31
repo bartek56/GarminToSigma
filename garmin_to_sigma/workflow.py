@@ -6,19 +6,19 @@ import os
 import re
 from dataclasses import replace
 
-from .Garmin.client import GarminClient
 from .Garmin.fit_parser import FitParser
 from .metrics import ActivityAnalyzer, WeatherAnalyzer
 from .models import Activity, ActivityMetadata, FitData
 from .naming import ActivityFileNamer
 from .Sigma.writer import SmfWriter
+from .source import ActivitySource
 from .ui import ConsoleUI
 
 
 class ConversionWorkflow:
     def __init__(
         self,
-        client: GarminClient | None,
+        client: ActivitySource | None,
         output_dir: str,
         ui: ConsoleUI | None = None,
     ):
@@ -33,7 +33,7 @@ class ConversionWorkflow:
         self, automatic: bool, start_date: datetime.date | None = None
     ) -> None:
         if self.client is None:
-            raise ValueError("Online workflow requires a Garmin client.")
+            raise ValueError("Online workflow requires an activity source client.")
         self.client.login()
         activities = self.client.list_activities(start_date or self.ui.prompt_start_date())
         if not activities:
@@ -63,16 +63,11 @@ class ConversionWorkflow:
 
     def convert_online_activity(self, activity: Activity, automatic: bool) -> None:
         details = self.client.get_details(activity.activity_id)
-        activity_type = self.client.activity_type(details) or activity.activity_type
-        activity = replace(
-            activity,
-            name=details.get("activityName") or activity.name,
-            activity_type=activity_type,
-        )
+        activity = self.client.enrich_activity(activity, details)
         weather = self.client.get_weather(activity.activity_id)
         fit_path = self.client.download_fit(activity)
         fit = self.fit_parser.parse(fit_path)
-        fit = self._apply_garmin_stats(fit, activity)
+        fit = self._apply_activity_stats(fit, activity)
         self.client.download_gpx(activity)
         self._convert(activity, fit, weather, automatic, gpx_available=True)
 
@@ -129,7 +124,7 @@ class ConversionWorkflow:
         )
 
     @staticmethod
-    def _apply_garmin_stats(fit: FitData, activity: Activity) -> FitData:
+    def _apply_activity_stats(fit: FitData, activity: Activity) -> FitData:
         values = (
             ("max_altitude", activity.max_elevation, "maxElevation"),
             ("min_altitude", activity.min_elevation, "minElevation"),
@@ -142,11 +137,11 @@ class ConversionWorkflow:
                     numeric = float(value)
                 except (TypeError, ValueError) as error:
                     raise ValueError(
-                        "Garmin Connect returned an invalid %s value." % garmin_field
+                        "Activity source returned an invalid %s value." % garmin_field
                     ) from error
                 if not math.isfinite(numeric):
                     raise ValueError(
-                        "Garmin Connect returned a non-finite %s value." % garmin_field
+                        "Activity source returned a non-finite %s value." % garmin_field
                     )
                 fit = replace(fit, **{field_name: numeric})
         return fit
@@ -169,7 +164,7 @@ class ConversionWorkflow:
         if activity_id:
             fallback_name = re.sub(r"(?:^|_)%s$" % re.escape(activity_id), "", fallback_name)
         name = fit.activity_name or fallback_name or "activity"
-        activity_type = GarminClient.activity_type({"sport": fit.sport})
+        activity_type = self._fit_activity_type(fit.sport)
         if activity_type is None:
             normalized = stem.lower()
             if "run" in normalized:
@@ -192,6 +187,15 @@ class ConversionWorkflow:
             activity_type=activity_type,
             activity_date=activity_date,
         )
+
+    @staticmethod
+    def _fit_activity_type(sport: object) -> str | None:
+        normalized = str(sport or "").lower()
+        if "run" in normalized:
+            return "running"
+        if "cycl" in normalized or "bik" in normalized:
+            return "cycling"
+        return None
 
 
 class OfflineWorkflow:

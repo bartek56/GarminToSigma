@@ -1,9 +1,9 @@
 ## Garmin to Sigma
 
-The script downloads cycling and running activities directly from Garmin
-Connect and converts them to Sigma SMF files. Activity statistics come from
-the original Garmin FIT file, while Garmin Connect's corrected elevation,
-temperature, and available weather data are used where available.
+The script downloads cycling and running activities from Garmin Connect or
+iGPSPORT and converts them to Sigma SMF files. Activity statistics come from
+the original FIT file, while source activity details are used for corrected
+elevation where available.
 
 ### Requirements
 
@@ -13,8 +13,7 @@ Use Python 3 and install the project dependencies from the repository root:
 python -m pip install -r requirements.txt
 ```
 
-The `requirements.txt` file lists `fitdecode` and `garminconnect` for Garmin
-activity conversion, plus `gpxpy` for the GPX merge utility.
+The `requirements.txt` file lists the pinned source and format dependencies.
 
 ### Usage
 
@@ -44,8 +43,8 @@ Downloaded FIT files are kept in the `activities` directory as
 selected again, the existing FIT file is reused instead of downloading it
 again. Activities with a cached FIT file are omitted from the selection list.
 
-For each selected activity, a GPX file is also downloaded to the `activities`
-directory. It uses the same base name as the generated SMF file, for example
+For each selected activity, a GPX file is also downloaded or generated in the
+`activities` directory. It uses the same base name as the generated SMF file, for example
 `2026-10-17_Activity name_123456.gpx`; an existing non-empty GPX file is reused.
 
 Temperature recorded in the FIT file is preferred. If FIT has no temperature,
@@ -64,6 +63,30 @@ temperature.
 The script uses the saved tokens in `garmin_tokens`; it does not require
 Garmin account credentials in source code or environment variables. Treat this
 directory as sensitive and do not share or commit it.
+
+### iGPSPORT source
+
+Select iGPSPORT with `--source igpsport`. Set the credentials before starting
+the script; they are read only from environment variables:
+
+```bash
+export IGPSPORT_USERNAME="your iGPSPORT login"
+export IGPSPORT_PASSWORD="your iGPSPORT password"
+python GarminToSigma.py --source igpsport --date 2026-10-01
+```
+
+In Windows PowerShell use `$env:IGPSPORT_USERNAME="..."` and
+`$env:IGPSPORT_PASSWORD="..."` instead of `export`.
+
+The account region defaults to `global`. For a China account use
+`--igps-region cn` or set `IGPSPORT_REGION=cn`. The app id defaults to
+`igpsport-web` and can be overridden with `IGPSPORT_APP_ID`.
+
+iGPSPORT support uses the private web API currently used by the iGPSPORT web
+application: login, paginated activity list, activity details, and FIT download
+URL. This API is not a stable public third-party contract and can change. The
+FIT file is downloaded to `activities`; if the activity detail does not expose
+a separate GPX URL, the GPX file is generated locally from the FIT GPS records.
 
 ### Offline conversion
 
@@ -92,8 +115,10 @@ The application is split into source, format, and shared layers:
 ```text
 garmin_to_sigma/
 ├── Garmin/       # Garmin Connect client and FIT parser
+├── IGPSport/     # iGPSPORT web API client and source adapter
 ├── Sigma/        # Sigma SMF writer
-├── Utils/        # source- and format-independent helpers
+├── Utils/        # source- and format-independent helpers, including GPX export
+├── source.py     # common online source interface
 ├── models.py     # shared activity data models
 ├── metrics.py    # shared activity analysis
 └── workflow.py   # source-independent conversion workflow
