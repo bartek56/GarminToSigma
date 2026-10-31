@@ -16,6 +16,7 @@ from garminconnect.api.activities import ActivityDownloadFormat
 
 TOKEN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "garmin_tokens")
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+ACTIVITIES_DIR = os.path.join(PROJECT_DIR, "activities")
 SIGMA_WEATHER_CODES = {
     "sunny": 0,
     "clear": 0,
@@ -134,6 +135,108 @@ def _beaufort_code(wind_speed):
     return 12
 
 
+def _elevation_per_km(fit_result):
+    try:
+        total_distance = float(fit_result.get("total_distance"))
+        total_ascent = float(fit_result.get("total_ascent"))
+        total_descent = float(fit_result.get("total_descent"))
+    except (TypeError, ValueError):
+        return 0
+
+    if (
+        not math.isfinite(total_distance)
+        or not math.isfinite(total_ascent)
+        or not math.isfinite(total_descent)
+        or total_distance <= 0
+    ):
+        return None
+
+    return max(total_ascent, total_descent) / (total_distance / 1000)
+
+
+def _trip_profile_from_elevation(fit_result):
+    """Return Sigma's track profile based on elevation gain per kilometre."""
+    elevation_per_km = _elevation_per_km(fit_result)
+    if elevation_per_km is None:
+        return 0
+
+    if elevation_per_km < 15:
+        return 0
+    if elevation_per_km < 30:
+        return 1
+    if elevation_per_km < 50:
+        return 2
+    if elevation_per_km < 80:
+        return 3
+    return 4
+
+
+def _score_from_thresholds(value, thresholds):
+    for score, threshold in enumerate(thresholds):
+        if value < threshold:
+            return score
+    return len(thresholds)
+
+
+def _evaluation_from_activity(fit_result, activity_type):
+    """Return a 0-5 activity evaluation from speed, distance and elevation."""
+    try:
+        distance_km = float(fit_result.get("total_distance")) / 1000
+        average_speed_kmh = float(fit_result.get("avg_speed")) * 3.6
+    except (TypeError, ValueError):
+        return 0
+
+    if (
+        not math.isfinite(distance_km)
+        or not math.isfinite(average_speed_kmh)
+        or distance_km <= 0
+        or average_speed_kmh < 0
+    ):
+        return 0
+
+    if activity_type == "running":
+        speed_score = _score_from_thresholds(
+            average_speed_kmh, (6, 8, 10, 12, 14)
+        )
+        distance_score = _score_from_thresholds(
+            distance_km, (3, 5, 10, 15, 25)
+        )
+    else:
+        speed_score = _score_from_thresholds(
+            average_speed_kmh, (15, 18, 22, 26, 30)
+        )
+        distance_score = _score_from_thresholds(
+            distance_km, (10, 25, 50, 80, 120)
+        )
+
+    elevation_per_km = _elevation_per_km(fit_result)
+    elevation_score = (
+        0
+        if elevation_per_km is None
+        else _score_from_thresholds(elevation_per_km, (15, 30, 50, 80, 120))
+    )
+    weighted_score = (
+        0.5 * speed_score
+        + 0.3 * distance_score
+        + 0.2 * elevation_score
+    )
+    return min(5, int(weighted_score + 0.5))
+
+
+def _prompt_temperature():
+    while True:
+        value = input("Temperature [°C]: ").strip().replace(",", ".")
+        try:
+            temperature = float(value)
+        except ValueError:
+            print("Enter a numeric temperature in °C.")
+            continue
+        if not math.isfinite(temperature):
+            print("Enter a finite temperature in °C.")
+            continue
+        return temperature
+
+
 def _activity_date(activity):
     start_time = activity.get("startTimeLocal") or activity.get("startTimeGMT")
     if not start_time:
@@ -153,7 +256,7 @@ def _safe_activity_name(activity_name, activity_id, activity_date):
     safe_name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", activity_name).strip(" .")
     if not safe_name:
         safe_name = "activity"
-    parts = [safe_name, activity_date]
+    parts = [activity_date, safe_name]
     if activity_id:
         parts.append(activity_id)
     return "_".join(parts)
@@ -164,19 +267,20 @@ def _activity_fit_is_cached(activity):
     if not activity_id:
         return False
 
-    legacy_fit_path = os.path.join(PROJECT_DIR, "%s_ACTIVITY.fit" % activity_id)
-    if os.path.isfile(legacy_fit_path) and os.path.getsize(legacy_fit_path) > 0:
-        return True
-
     try:
         activity_date = _activity_date(activity)
     except ValueError:
         return False
 
+    activity_name = activity.get("activityName") or "activity"
     fit_path = os.path.join(
-        PROJECT_DIR, "%s_%s_ACTIVITY.fit" % (activity_id, activity_date)
+        ACTIVITIES_DIR,
+        "%s_ACTIVITY.fit"
+        % _safe_activity_name(activity_name, activity_id, activity_date),
     )
-    return os.path.isfile(fit_path) and os.path.getsize(fit_path) > 0
+    if os.path.isfile(fit_path) and os.path.getsize(fit_path) > 0:
+        return True
+    return False
 
 
 def _apply_garmin_elevation_stats(fit_result, activity):
@@ -203,18 +307,14 @@ def _apply_garmin_elevation_stats(fit_result, activity):
         fit_result[fit_field] = numeric_value
 
 
-def _download_activity_fit(garmin, activity_id, activity_date):
+def _download_activity_fit(garmin, activity_id, activity_date, activity_name):
     fit_path = os.path.join(
-        PROJECT_DIR, "%s_%s_ACTIVITY.fit" % (activity_id, activity_date)
+        ACTIVITIES_DIR,
+        "%s_ACTIVITY.fit"
+        % _safe_activity_name(activity_name, activity_id, activity_date),
     )
     if os.path.isfile(fit_path) and os.path.getsize(fit_path) > 0:
         print("Using downloaded activity file: %s" % fit_path)
-        return fit_path
-
-    legacy_fit_path = os.path.join(PROJECT_DIR, "%s_ACTIVITY.fit" % activity_id)
-    if os.path.isfile(legacy_fit_path) and os.path.getsize(legacy_fit_path) > 0:
-        shutil.copy2(legacy_fit_path, fit_path)
-        print("Using cached activity file: %s" % fit_path)
         return fit_path
 
     archive_data = garmin.download_activity(
@@ -249,7 +349,7 @@ def _download_activity_fit(garmin, activity_id, activity_date):
 
 
 def _download_activity_gpx(garmin, activity_id, file_name):
-    gpx_path = os.path.join(PROJECT_DIR, "%s.gpx" % file_name)
+    gpx_path = os.path.join(ACTIVITIES_DIR, "%s.gpx" % file_name)
     if os.path.isfile(gpx_path) and os.path.getsize(gpx_path) > 0:
         print("Using downloaded activity GPX: %s" % gpx_path)
         return gpx_path
@@ -383,13 +483,13 @@ def readFitFile(filename):
                     if frame.name == "session" and field_name == "max_heart_rate":
                         if field_value is not None:
                             result["max_heart_rate"] = field_value
-                    if field_name == "total_timer_time":
+                    if frame.name == "session" and field_name == "total_timer_time":
                         if field_value is not None:
                             result["total_timer_time"] = field_value
-                    if field_name == "total_ascent":
+                    if frame.name == "session" and field_name == "total_ascent":
                         if field_value is not None:
                             result["total_ascent"] = field_value
-                    if field_name == "total_descent":
+                    if frame.name == "session" and field_name == "total_descent":
                         if field_value is not None:
                             result["total_descent"] = field_value
                     if (
@@ -412,7 +512,7 @@ def readFitFile(filename):
                                 or "avg_speed" not in result
                             ):
                                 result["avg_speed"] = field_value
-                    if field_name == "total_calories":
+                    if frame.name == "session" and field_name == "total_calories":
                         if field_value is not None:
                             result["total_calories"] = field_value
                     if field_name == "start_time":
@@ -422,7 +522,7 @@ def readFitFile(filename):
                         result["sport"] = field_value
                     if field_name in {"name", "activity_name"} and field_value:
                         result["activity_name"] = str(field_value)
-                    if field_name == "total_distance":
+                    if frame.name == "session" and field_name == "total_distance":
                         if field_value is not None:
                             result["total_distance"] = field_value
                     if "temperature" in field_name and field_value is not None:
@@ -815,7 +915,7 @@ def saveToSmfFile(computerBike, fitResult, csvResult, notes, activityNumber):
     Participant = ET.SubElement(generalInformation, "Participant")
 
     tree = ET.ElementTree(root)
-    file = "%s.smf"%(notes["file_name"])
+    file = os.path.join(ACTIVITIES_DIR, "%s.smf" % notes["file_name"])
     tree.write(file, encoding="utf-8", xml_declaration=True)
 
 def saveHikingToSmfFile(fitResult, notes, activityNumber):
@@ -1077,7 +1177,7 @@ def saveHikingToSmfFile(fitResult, notes, activityNumber):
     Participant = ET.SubElement(generalInformation, "Participant")
 
     tree = ET.ElementTree(root)
-    file = "%s.smf"%(notes["file_name"])
+    file = os.path.join(ACTIVITIES_DIR, "%s.smf" % notes["file_name"])
     tree.write(file, encoding="utf-8", xml_declaration=True)
 
 def saveRunningToSmfFile(fitResult, notes, activityNumber):
@@ -1339,7 +1439,7 @@ def saveRunningToSmfFile(fitResult, notes, activityNumber):
     Participant = ET.SubElement(generalInformation, "Participant")
 
     tree = ET.ElementTree(root)
-    file = "%s.smf"%(notes["file_name"])
+    file = os.path.join(ACTIVITIES_DIR, "%s.smf" % notes["file_name"])
     tree.write(file, encoding="utf-8", xml_declaration=True)
 
 def saveBscCyclingToSmfFile(fitResult, notes, activityNumber):
@@ -1601,7 +1701,7 @@ def saveBscCyclingToSmfFile(fitResult, notes, activityNumber):
     Participant = ET.SubElement(generalInformation, "Participant")
 
     tree = ET.ElementTree(root)
-    file = "%s.smf"%(notes["file_name"])
+    file = os.path.join(ACTIVITIES_DIR, "%s.smf" % notes["file_name"])
     tree.write(file, encoding="utf-8", xml_declaration=True)
 
 def saveGarminCyclingToSmfFile(fitResult, notes, activityNumber):
@@ -1863,7 +1963,7 @@ def saveGarminCyclingToSmfFile(fitResult, notes, activityNumber):
     Participant = ET.SubElement(generalInformation, "Participant")
 
     tree = ET.ElementTree(root)
-    file = "%s.smf"%(notes["file_name"])
+    file = os.path.join(ACTIVITIES_DIR, "%s.smf" % notes["file_name"])
     tree.write(file, encoding="utf-8", xml_declaration=True)
 
 def notes(
@@ -1874,6 +1974,7 @@ def notes(
     weather_data,
     activity_date,
     allow_missing_temperature=False,
+    automatic=True,
 ):
     activity_name = activity.get("activityName") or activity_type.title()
     fit_temperature = fit_result.get("avg_temperature")
@@ -1891,12 +1992,7 @@ def notes(
     else:
         temperature = fit_result.get("avg_temperature")
     if temperature is None:
-        if allow_missing_temperature:
-            temperature = ""
-        else:
-            raise ValueError(
-                "Garmin Connect and the activity FIT file do not provide a temperature."
-            )
+        temperature = ""
 
     wind_speed_mph = _find_weather_value(weather_data, {"windspeed"})
     wind_speed_mps = _garmin_wind_speed_mps(wind_speed_mph)
@@ -1911,21 +2007,13 @@ def notes(
         "wind_speed_mph": wind_speed_mph if wind_speed_mph is not None else "",
     }
 
-    note["trip_profile"] = input("Trip Profile [0-7]: \n \
-        0 - flat \n \
-        1 - slightly undulating \n \
-        2 - undulating \n \
-        3 - mountainous \n \
-        4 - steep \n -> ")
+    note["trip_profile"] = _trip_profile_from_elevation(fit_result)
 
-    note["feelings"] = input("Feelings [0-4]: \n \
-        4 - very happy \n \
-        3 - happy \n \
-        2 - normal \n \
-        1 - sad \n \
-        0 - very sad  \n -> ")
-
-    note["evaluation"] = input("Evaluation [0-5]: ")
+    note["evaluation"] = (
+        _evaluation_from_activity(fit_result, activity_type)
+        if automatic
+        else ""
+    )
 
     return note
 
@@ -2002,7 +2090,32 @@ def _show_activity_list(activities):
         )
 
 
-def _convert_activity(garmin, selected_activity):
+def _selected_indices(selection, item_count):
+    selection = selection.strip().lower()
+    if not selection or selection == "all":
+        return list(range(item_count))
+
+    selected = set()
+    for part in selection.split(","):
+        part = part.strip()
+        range_match = re.fullmatch(r"(\d+)\s*-\s*(\d+)", part)
+        if range_match:
+            first, last = map(int, range_match.groups())
+            if first > last:
+                raise ValueError("Range must be in ascending order.")
+            selected.update(range(first, last + 1))
+            continue
+
+        if not part.isdigit():
+            raise ValueError("Use numbers, comma-separated numbers, or ranges.")
+        selected.add(int(part))
+
+    if not selected or min(selected) < 1 or max(selected) > item_count:
+        raise ValueError("Choose numbers from the displayed list.")
+    return [index - 1 for index in sorted(selected)]
+
+
+def _convert_activity(garmin, selected_activity, automatic=True):
     activity_number = str(selected_activity["activityId"])
     activity_date = _activity_date(selected_activity)
     activity_details = garmin.get_activity(activity_number)
@@ -2015,7 +2128,14 @@ def _convert_activity(garmin, selected_activity):
         )
 
     weather_data = garmin.get_activity_weather(activity_number)
-    fit_path = _download_activity_fit(garmin, activity_number, activity_date)
+    activity_name = (
+        (activity_details or {}).get("activityName")
+        or selected_activity.get("activityName")
+        or activity_type.title()
+    )
+    fit_path = _download_activity_fit(
+        garmin, activity_number, activity_date, activity_name
+    )
     fit_result = readFitFile(fit_path)
     _apply_garmin_elevation_stats(fit_result, selected_activity)
     _complete_activity_conversion(
@@ -2026,6 +2146,7 @@ def _convert_activity(garmin, selected_activity):
         weather_data,
         activity_date,
         gpx_downloader=garmin,
+        automatic=automatic,
     )
 
 
@@ -2037,6 +2158,7 @@ def _complete_activity_conversion(
     weather_data,
     activity_date,
     gpx_downloader=None,
+    automatic=True,
 ):
     activity_name = (
         activity.get("activityName")
@@ -2055,11 +2177,16 @@ def _complete_activity_conversion(
         weather_data,
         activity_date,
         allow_missing_temperature=gpx_downloader is None,
+        automatic=automatic,
     )
+    if automatic:
+        note["feelings"] = "3"
     showSmfInputData(fit_result, note, activity_type, activity_id)
-    if input("Save SMF file? [t/N]: ").strip().lower() not in {"t", "tak"}:
-        print("SMF file not saved.")
-        return
+    if note["temperature"] == "":
+        note["temperature"] = _prompt_temperature()
+    if not automatic:
+        note["feelings"] = input("Feelings [0-4]: ").strip()
+        note["evaluation"] = input("Evaluation [0-5]: ").strip()
 
     if activity_type == "running":
         saveRunningToSmfFile(fit_result, note, activity_id)
@@ -2068,8 +2195,13 @@ def _complete_activity_conversion(
 
 
 def _find_fit_files(directory):
+    if os.path.isfile(directory):
+        if not directory.lower().endswith(".fit"):
+            raise ValueError("Offline input file must have a .fit extension: %s" % directory)
+        return [directory]
+
     if not os.path.isdir(directory):
-        raise NotADirectoryError("FIT search directory does not exist: %s" % directory)
+        raise FileNotFoundError("FIT file or search directory does not exist: %s" % directory)
 
     fit_files = []
     for current_directory, directory_names, file_names in os.walk(directory):
@@ -2106,6 +2238,7 @@ def _offline_activity_details(fit_path, fit_result):
     fallback_name = re.sub(
         r"_ACTIVITY$", "", fit_path_stem, flags=re.IGNORECASE
     )
+    fallback_name = re.sub(r"^\d{4}-\d{2}-\d{2}_", "", fallback_name)
     fallback_name = re.sub(r"_\d{4}-\d{2}-\d{2}", "", fallback_name)
     if activity_id:
         fallback_name = re.sub(
@@ -2142,7 +2275,7 @@ def _offline_activity_details(fit_path, fit_result):
     }
 
 
-def _convert_offline_fit(fit_path):
+def _convert_offline_fit(fit_path, automatic=True):
     fit_result = readFitFile(fit_path)
     activity = _offline_activity_details(fit_path, fit_result)
     _complete_activity_conversion(
@@ -2152,10 +2285,11 @@ def _convert_offline_fit(fit_path):
         fit_result,
         {},
         activity["activity_date"],
+        automatic=automatic,
     )
 
 
-def _run_offline(directory):
+def _run_offline(directory, automatic=False):
     processed_files = set()
     while True:
         fit_files = [
@@ -2167,6 +2301,26 @@ def _run_offline(directory):
             return
 
         selected_fit = None
+        if automatic:
+            print("FIT files to convert:")
+            for index, fit_path in enumerate(fit_files, start=1):
+                print("%d. %s" % (index, fit_path))
+            confirmation = input(
+                "FIT files to convert [Enter/all=all, e.g. 1,3 or 1-5, q=quit]: "
+            ).strip().lower()
+            if confirmation == "q":
+                return
+            try:
+                selected_indices = _selected_indices(confirmation, len(fit_files))
+            except ValueError as error:
+                print(error)
+                continue
+            for index in selected_indices:
+                fit_path = fit_files[index]
+                processed_files.add(fit_path)
+                _convert_offline_fit(fit_path, automatic=True)
+            return
+
         for index, fit_path in enumerate(fit_files, start=1):
             print("%d. %s" % (index, fit_path))
             confirmation = input(
@@ -2183,22 +2337,31 @@ def _run_offline(directory):
             print("No FIT file was selected.")
             return
 
-        _convert_offline_fit(selected_fit)
+        _convert_offline_fit(selected_fit, automatic=False)
 
 
 def main(argv=None):
+    os.makedirs(ACTIVITIES_DIR, exist_ok=True)
     parser = argparse.ArgumentParser(description="Convert Garmin activities to Sigma SMF.")
     parser.add_argument(
         "--offline",
         nargs="?",
-        const=PROJECT_DIR,
+        const=ACTIVITIES_DIR,
         metavar="DIRECTORY",
-        help="search for FIT files in DIRECTORY (default: project directory) without Garmin Connect",
+        help="search for FIT files in DIRECTORY (default: activities directory) without Garmin Connect",
+    )
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help="convert all listed activities after pressing Enter",
     )
     args = parser.parse_args(argv)
 
     if args.offline is not None:
-        _run_offline(os.path.abspath(os.path.expanduser(args.offline)))
+        _run_offline(
+            os.path.abspath(os.path.expanduser(args.offline)),
+            automatic=args.auto,
+        )
         return
 
     garmin = Garmin()
@@ -2216,9 +2379,23 @@ def main(argv=None):
             return
 
         _show_activity_list(activities)
-        selection = input(
-            "Activity index to convert (or q to quit): "
-        ).strip().lower()
+        if args.auto:
+            confirmation = input(
+                "Activities to convert [Enter/all=all, e.g. 1,3 or 1-5, q=quit]: "
+            ).strip().lower()
+            if confirmation == "q":
+                return
+            try:
+                selected_indices = _selected_indices(confirmation, len(activities))
+            except ValueError as error:
+                print(error)
+                continue
+            for index in selected_indices:
+                selected_activity = activities[index]
+                _convert_activity(garmin, selected_activity, automatic=True)
+            return
+
+        selection = input("Activity index to convert (or q to quit): ").strip().lower()
         if selection == "q":
             return
 
@@ -2233,7 +2410,7 @@ def main(argv=None):
             continue
 
         selected_activity = activities.pop(index - 1)
-        _convert_activity(garmin, selected_activity)
+        _convert_activity(garmin, selected_activity, automatic=False)
 
 if __name__ == '__main__':
     main()
